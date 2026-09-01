@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     payment_provider: str = Field(default="mock")
 
     log_level: str = Field(default="INFO")
+    trusted_proxies: str = Field(default="127.0.0.1,::1,localhost")
 
     @field_validator("cors_origins")
     @classmethod
@@ -46,6 +47,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def trusted_proxies_list(self) -> list[str]:
+        return [p.strip() for p in self.trusted_proxies.split(",") if p.strip()]
 
     @property
     def database_url_effective(self) -> str:

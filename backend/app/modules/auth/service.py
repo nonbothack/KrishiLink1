@@ -12,6 +12,8 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
     hash_password,
+    is_token_revoked,
+    revoke_token,
     verify_password,
 )
 from app.models import AuditLog, OutboxEvent, User
@@ -136,6 +138,8 @@ def refresh_tokens(db: Session, refresh_token: str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    if is_token_revoked(refresh_token, payload):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has been revoked")
     uid = payload.get("sub")
     try:
         user = db.get(User, uuid.UUID(uid))
@@ -144,6 +148,27 @@ def refresh_tokens(db: Session, refresh_token: str):
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return issue_tokens(user)
+
+
+def logout_user(db: Session, access_token: str | None, refresh_token: str | None, user: User, request: Request):
+    if access_token:
+        revoke_token(access_token)
+    if refresh_token:
+        revoke_token(refresh_token)
+
+    rid = getattr(request.state, "request_id", str(uuid.uuid4()))
+    db.add(
+        AuditLog(
+            actor_id=str(user.id),
+            action="user.logout",
+            entity="users",
+            entity_id=str(user.id),
+            after={"status": "logged_out", "revoked_tokens": bool(access_token or refresh_token)},
+            request_id=rid,
+        )
+    )
+    db.commit()
+    return {"message": "Logged out successfully; session tokens invalidated."}
 
 
 def request_password_reset(db: Session, email: str, request: Request):

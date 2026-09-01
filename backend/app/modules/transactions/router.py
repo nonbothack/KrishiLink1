@@ -48,7 +48,7 @@ class TransitionRequest(BaseModel):
 @router.post("", response_model=dict, status_code=201)
 @rate_limit(max_requests=20, window_seconds=60, key_prefix="rl_txn")
 def create_transaction(data: CreateTxnRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    cached = check_idempotency(request, db)
+    cached = check_idempotency(request, db, user=user)
     if cached:
         return cached.response_body
 
@@ -116,7 +116,7 @@ def create_transaction(data: CreateTxnRequest, request: Request, db: Session = D
     db.commit()
     db.refresh(txn)
     body = {"success": True, "data": {"id": str(txn.id), "status": txn.status, "lot_id": str(txn.lot_id), "gross_value": float(txn.gross_value) if txn.gross_value else 0.0}, "message": "Transaction created", "request_id": rid}
-    save_idempotency(request, db, 201, body)
+    save_idempotency(request, db, 201, body, user=user)
     return body
 
 @router.get("", response_model=dict)

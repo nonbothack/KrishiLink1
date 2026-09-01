@@ -32,12 +32,60 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Helper for safe fetch with timeout + auth header
-export async function apiCall(endpoint, options = {}) {
+// Single-flight refresh token queue to prevent refresh storms across concurrent requests
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+function subscribeTokenRefresh(cb) {
+  refreshSubscribers.push(cb);
+}
+
+function onRefreshed(token) {
+  refreshSubscribers.forEach(cb => cb(token, null));
+  refreshSubscribers = [];
+}
+
+function onRefreshFailed(err) {
+  refreshSubscribers.forEach(cb => cb(null, err));
+  refreshSubscribers = [];
+}
+
+async function performTokenRefresh() {
+  const refreshToken = localStorage.getItem('krishilink_refresh_token');
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+    signal: controller.signal,
+  });
+  clearTimeout(timeoutId);
+
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success || !json?.data?.access_token) {
+    throw new Error(json?.message || 'Token refresh failed');
+  }
+
+  const newAccessToken = json.data.access_token;
+  localStorage.setItem('krishilink_access_token', newAccessToken);
+  if (json.data.refresh_token) {
+    localStorage.setItem('krishilink_refresh_token', json.data.refresh_token);
+  }
+  return newAccessToken;
+}
+
+// Helper for safe fetch with timeout + auth header + automatic 401 retry
+export async function apiCall(endpoint, options = {}, isRetry = false) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     const response = await fetch(url, {
       headers: {
@@ -51,6 +99,44 @@ export async function apiCall(endpoint, options = {}) {
     clearTimeout(timeoutId);
 
     const json = await response.json().catch(() => null);
+
+    // Handle 401 Unauthorized with token refresh if not already retrying and not an auth endpoint
+    if (
+      response.status === 401 &&
+      !isRetry &&
+      !endpoint.includes('/auth/login') &&
+      !endpoint.includes('/auth/refresh') &&
+      !endpoint.includes('/auth/register')
+    ) {
+      if (isRefreshing) {
+        // Wait for the single ongoing refresh request to complete
+        return new Promise((resolve) => {
+          subscribeTokenRefresh(async (newToken, err) => {
+            if (err || !newToken) {
+              resolve({ success: false, error: 'Session expired. Please log in again.', status: 401, data: null });
+            } else {
+              const retryRes = await apiCall(endpoint, options, true);
+              resolve(retryRes);
+            }
+          });
+        });
+      }
+
+      isRefreshing = true;
+      try {
+        const newToken = await performTokenRefresh();
+        onRefreshed(newToken);
+        isRefreshing = false;
+        return await apiCall(endpoint, options, true);
+      } catch (refreshErr) {
+        onRefreshFailed(refreshErr);
+        isRefreshing = false;
+        localStorage.removeItem('krishilink_access_token');
+        localStorage.removeItem('krishilink_refresh_token');
+        localStorage.removeItem('krishilink_user');
+        return { success: false, error: 'Session expired. Please log in again.', status: 401, data: null };
+      }
+    }
 
     if (!response.ok) {
       const errorMsg = json?.message || json?.detail || `API error: ${response.status} ${response.statusText}`;

@@ -47,11 +47,25 @@ def test_rate_limit_exceeded(mock_get_redis):
         return {"ok": True}
     
     request = Mock()
-    request.client.host = "127.0.0.1"
-    request.url.path = "/test"
-    
     import asyncio
     from fastapi import HTTPException
     with pytest.raises(HTTPException) as exc:
         asyncio.run(dummy_endpoint(request))
     assert exc.value.status_code == 429
+
+
+def test_trusted_proxy_ip_extraction():
+    from app.core.rate_limit import _get_client_ip
+
+    # Trusted proxy scenario (127.0.0.1 is in default trusted proxies)
+    req_trusted = Mock()
+    req_trusted.client.host = "127.0.0.1"
+    req_trusted.headers = {"x-forwarded-for": "203.0.113.195, 10.0.0.1"}
+    assert _get_client_ip(req_trusted) == "203.0.113.195"
+
+    # Untrusted direct client attempting to spoof X-Forwarded-For
+    req_untrusted = Mock()
+    req_untrusted.client.host = "198.51.100.42"
+    req_untrusted.headers = {"x-forwarded-for": "10.0.0.99"}
+    # Must ignore spoofed header and return direct IP
+    assert _get_client_ip(req_untrusted) == "198.51.100.42"

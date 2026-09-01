@@ -8,6 +8,7 @@ from app.models import User
 from app.modules.auth.schemas import (
     ForgotPasswordRequest,
     LoginRequest,
+    LogoutRequest,
     RefreshRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -16,6 +17,7 @@ from app.modules.auth.schemas import (
 from app.modules.auth.service import (
     authenticate_user,
     issue_tokens,
+    logout_user,
     refresh_tokens,
     register_user,
     request_password_reset,
@@ -49,9 +51,15 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     }
 
 @router.post("/refresh", response_model=dict)
-def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
+@rate_limit(max_requests=30, window_seconds=60, key_prefix="rl_ref")
+def refresh(data: RefreshRequest, request: Request, db: Session = Depends(get_db)):
     tokens = refresh_tokens(db, data.refresh_token)
-    return {"success": True, "data": tokens, "message": "Tokens refreshed", "request_id": None}
+    return {
+        "success": True,
+        "data": tokens,
+        "message": "Tokens refreshed",
+        "request_id": getattr(request.state, "request_id", None),
+    }
 
 @router.post("/forgot-password", response_model=dict)
 @rate_limit(max_requests=10, window_seconds=60, key_prefix="rl_fp")
@@ -85,10 +93,22 @@ def me(request: Request, user: User = Depends(get_current_user)):
     }
 
 @router.post("/logout", response_model=dict)
-def logout(request: Request, user: User = Depends(get_current_user)):
+def logout(
+    request: Request,
+    data: LogoutRequest | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    access_token = None
+    if auth_header and auth_header.lower().startswith("bearer "):
+        access_token = auth_header.split(" ", 1)[1].strip()
+    refresh_token = data.refresh_token if data else None
+
+    res = logout_user(db, access_token, refresh_token, user, request)
     return {
         "success": True,
         "data": None,
-        "message": "Logged out (client should discard tokens)",
+        "message": res["message"],
         "request_id": getattr(request.state, "request_id", None),
     }

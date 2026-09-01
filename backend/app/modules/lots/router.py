@@ -32,7 +32,7 @@ def gen_public_id(db: Session):
 
 @router.post("", response_model=dict, status_code=201)
 def create_lot(data: CreateLotRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(require_role("farmer","fpo","admin"))):
-    cached = check_idempotency(request, db)
+    cached = check_idempotency(request, db, user=user)
     if cached:
         return cached.response_body
     crop = db.query(Crop).filter(Crop.name.ilike(data.crop)).first()
@@ -60,7 +60,7 @@ def create_lot(data: CreateLotRequest, request: Request, db: Session = Depends(g
     db.commit()
     db.refresh(lot)
     body = {"success": True, "data": {"id": str(lot.id), "public_id": lot.public_id, "crop": lot.crop_name, "quantity": float(lot.quantity), "grade": lot.grade, "status": lot.status}, "message": "Lot created", "request_id": getattr(request.state, "request_id", None)}
-    save_idempotency(request, db, 201, body)
+    save_idempotency(request, db, 201, body, user=user)
     return body
 
 @router.get("", response_model=dict)

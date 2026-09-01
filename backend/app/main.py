@@ -29,12 +29,13 @@ from app.modules.users.router import router as users_router
 
 def create_app() -> FastAPI:
     settings.validate_prod()
+    is_prod = settings.env == "production"
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url=f"{settings.api_v1_prefix}/openapi.json",
+        docs_url=None if is_prod else "/docs",
+        redoc_url=None if is_prod else "/redoc",
+        openapi_url=None if is_prod else f"{settings.api_v1_prefix}/openapi.json",
     )
 
     init_otel(app)

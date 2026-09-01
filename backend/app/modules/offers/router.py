@@ -34,7 +34,7 @@ def _ensure_buyer(user: User):
 @rate_limit(max_requests=30, window_seconds=60, key_prefix="rl_offer")
 def create_offer(data: CreateOfferRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _ensure_buyer(user)
-    cached = check_idempotency(request, db)
+    cached = check_idempotency(request, db, user=user)
     if cached:
         return cached.response_body
 
@@ -80,7 +80,7 @@ def create_offer(data: CreateOfferRequest, request: Request, db: Session = Depen
     db.commit()
     db.refresh(offer)
     body = {"success": True, "data": {"id": str(offer.id), "lot_id": str(offer.lot_id), "quantity": float(offer.quantity), "price_per_unit": float(offer.price_per_unit), "status": offer.status}, "message": "Offer created", "request_id": rid}
-    save_idempotency(request, db, 201, body)
+    save_idempotency(request, db, 201, body, user=user)
     return body
 
 @router.get("", response_model=dict)

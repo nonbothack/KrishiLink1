@@ -9,24 +9,54 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { DEMO_USERS } from '../data/demoData';
+import { apiCall } from '../services/api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('krishilink_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
 
-  // On app start, restore user from localStorage so they stay logged in
+  // On app start, revalidate active session with backend /auth/me
   useEffect(() => {
-    const savedUser = localStorage.getItem('krishilink_user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {
-        localStorage.removeItem('krishilink_user');
+    let isMounted = true;
+    async function revalidateSession() {
+      const accessToken = localStorage.getItem('krishilink_access_token');
+      if (accessToken) {
+        try {
+          const res = await apiCall('/api/v1/auth/me');
+          if (isMounted) {
+            if (res && res.success && res.data) {
+              const apiUser = res.data;
+              const normalised = { ...apiUser, name: apiUser.full_name, id: String(apiUser.id) };
+              setUser(normalised);
+              localStorage.setItem('krishilink_user', JSON.stringify(normalised));
+            } else if (res && res.status === 401) {
+              // Token invalid or revoked and refresh failed
+              setUser(null);
+              localStorage.removeItem('krishilink_user');
+              localStorage.removeItem('krishilink_access_token');
+              localStorage.removeItem('krishilink_refresh_token');
+            }
+          }
+        } catch {
+          // Network error: maintain cached session gracefully
+        }
       }
+      if (isMounted) setLoading(false);
     }
-    setLoading(false);
+
+    revalidateSession();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Demo login: instantly logs in with a pre-defined demo user (no API call)
@@ -154,12 +184,22 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Logout: clear tokens + user state
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('krishilink_user');
-    localStorage.removeItem('krishilink_access_token');
-    localStorage.removeItem('krishilink_refresh_token');
+  // Logout: trigger server-side token invalidation + clear client state
+  const logout = async () => {
+    const refreshToken = localStorage.getItem('krishilink_refresh_token');
+    try {
+      await apiCall('/api/v1/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+    } catch (err) {
+      console.warn('[useAuth] Server logout notification failed:', err);
+    } finally {
+      setUser(null);
+      localStorage.removeItem('krishilink_user');
+      localStorage.removeItem('krishilink_access_token');
+      localStorage.removeItem('krishilink_refresh_token');
+    }
   };
 
   const value = {
