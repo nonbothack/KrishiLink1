@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -360,6 +361,9 @@ class Transaction(Base):
         Index("ix_txn_public_id", "public_id"),
     )
 
+    term_snapshot = relationship("TradeTermSnapshot", back_populates="transaction", uselist=False, cascade="all, delete-orphan")
+    events = relationship("TradeEvent", back_populates="transaction", cascade="all, delete-orphan", order_by="TradeEvent.created_at")
+
 class TradeTermSnapshot(Base):
     __tablename__ = "trade_term_snapshots"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -382,6 +386,8 @@ class TradeTermSnapshot(Base):
         Index("ix_trade_terms_txn", "transaction_id"),
     )
 
+    transaction = relationship("Transaction", back_populates="term_snapshot")
+
 class TradeEvent(Base):
     __tablename__ = "trade_events"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -398,6 +404,8 @@ class TradeEvent(Base):
         Index("ix_trade_events_txn", "transaction_id"),
         Index("ix_trade_events_created", "created_at"),
     )
+
+    transaction = relationship("Transaction", back_populates="events")
 
 class TransactionItem(Base):
     __tablename__ = "transaction_items"

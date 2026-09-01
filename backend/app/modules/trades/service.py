@@ -334,6 +334,7 @@ def execute_trade_transition(
 
     txn.status = target_status
     txn.updated_at = datetime.now(timezone.utc)
+    db.flush()
 
     # Create timeline domain event
     ev = TradeEvent(

@@ -108,6 +108,7 @@ def create_transaction(data: CreateTxnRequest, request: Request, db: Session = D
         idempotency_key=idempotency_key
     )
     db.add(txn)
+    db.flush()
 
     # Initialize immutable TradeTermSnapshot
     price_unit = float(offer.price_per_unit) if offer and offer.price_per_unit else (float(lot.asking_price) if lot and lot.asking_price else (gross_val / float(res.quantity) if float(res.quantity) else 0.0))
