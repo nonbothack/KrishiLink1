@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { CheckCircle2, Clock, Package, Truck, Wallet } from 'lucide-react';
 import { getTransactions } from '../services/api';
 import { StatusBadge } from '../components/Badges';
@@ -124,13 +125,22 @@ function TransactionCard({ txn }) {
         </div>
       </div>
 
-      {/* Timeline toggle */}
-      <button
-        onClick={() => setShowTimeline(!showTimeline)}
-        className="text-green-700 text-sm font-semibold hover:underline"
-      >
-        {showTimeline ? 'Hide Timeline' : 'Show Full Timeline'}
-      </button>
+      {/* Action Links */}
+      <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-3">
+        <button
+          onClick={() => setShowTimeline(!showTimeline)}
+          className="text-gray-600 hover:text-gray-900 text-xs font-semibold"
+        >
+          {showTimeline ? 'Hide Stage Flow' : 'View Stage Flow'}
+        </button>
+
+        <Link
+          to={`/trades/${txn.public_id || txn.id}`}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition"
+        >
+          Enter Trade Room →
+        </Link>
+      </div>
 
       {showTimeline && (
         <TransactionTimeline status={status} />

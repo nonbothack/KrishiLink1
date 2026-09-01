@@ -338,6 +338,7 @@ class Reservation(Base):
 class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    public_id = Column(Text, unique=True, nullable=True)
     lot_id = Column(UUID(as_uuid=True), ForeignKey("lots.id"), nullable=False)
     buyer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -356,6 +357,46 @@ class Transaction(Base):
         CheckConstraint("status IN ('CREATED','PAYMENT_PENDING','PAYMENT_CONFIRMED','PROCESSING','READY_FOR_DISPATCH','IN_TRANSIT','DELIVERED','COMPLETED','DISPUTED','CANCELLED','REFUNDED','offer_accepted','payment_pending','payment_received','completed')", name="ck_txn_status"),
         Index("ix_txn_seller", "seller_id"),
         Index("ix_txn_buyer", "buyer_id"),
+        Index("ix_txn_public_id", "public_id"),
+    )
+
+class TradeTermSnapshot(Base):
+    __tablename__ = "trade_term_snapshots"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id"), unique=True, nullable=False)
+    lot_id = Column(UUID(as_uuid=True), ForeignKey("lots.id"), nullable=False)
+    buyer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    crop_name = Column(Text, nullable=False)
+    grade = Column(Text, nullable=False)
+    quantity = Column(Numeric(12,2), nullable=False)
+    unit = Column(Text, default="quintal")
+    price_per_unit = Column(Numeric(12,2), nullable=False)
+    gross_value = Column(Numeric(12,2), nullable=False)
+    estimated_net_realization = Column(Numeric(12,2), nullable=True)
+    delivery_window = Column(Text, nullable=True)
+    pickup_location = Column(Text, nullable=True)
+    delivery_location = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        Index("ix_trade_terms_txn", "transaction_id"),
+    )
+
+class TradeEvent(Base):
+    __tablename__ = "trade_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    actor_role = Column(Text, nullable=True)
+    event_type = Column(Text, nullable=False)  # 'DOMAIN_EVENT', 'USER_NOTE'
+    from_status = Column(Text, nullable=True)
+    to_status = Column(Text, nullable=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        Index("ix_trade_events_txn", "transaction_id"),
+        Index("ix_trade_events_created", "created_at"),
     )
 
 class TransactionItem(Base):

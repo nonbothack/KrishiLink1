@@ -2,9 +2,11 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.core.database import SessionLocal
+from sqlalchemy import text
+
+from app.core.database import Base, SessionLocal, engine
 from app.core.security import hash_password
+from app.main import app
 from app.models import Crop, Market, User
 
 @pytest.fixture(scope="session")
@@ -23,6 +25,15 @@ def db_session():
 
 @pytest.fixture(scope="session", autouse=True)
 def ensure_test_users():
+    # Sync SQLite schema tables & columns
+    Base.metadata.create_all(engine)
+    if "sqlite" in str(engine.url):
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN public_id TEXT"))
+                conn.commit()
+            except Exception:
+                pass
     db = SessionLocal()
     try:
         # Seed test crops

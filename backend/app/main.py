@@ -23,6 +23,7 @@ from app.modules.offers.router import router as offers_router
 from app.modules.prices.router import router as prices_router
 from app.modules.reservations.router import router as reservations_router
 from app.modules.storage.router import router as storage_router
+from app.modules.trades.router import router as trades_router
 from app.modules.transactions.router import router as transactions_router
 from app.modules.users.router import router as users_router
 
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(offers_router, prefix=settings.api_v1_prefix)
     app.include_router(reservations_router, prefix=settings.api_v1_prefix)
     app.include_router(transactions_router, prefix=settings.api_v1_prefix)
+    app.include_router(trades_router, prefix=settings.api_v1_prefix)
     app.include_router(storage_router, prefix=settings.api_v1_prefix)
     app.include_router(disputes_router, prefix=settings.api_v1_prefix)
     app.include_router(notifications_router, prefix=settings.api_v1_prefix)

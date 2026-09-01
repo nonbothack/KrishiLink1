@@ -8,11 +8,14 @@ def test_get_redis(mock_redis_class):
     mock_client = Mock()
     mock_redis_class.return_value = mock_client
     
-    rl_module.redis_client = None
-    
-    client = get_redis()
-    assert client is mock_client
-    mock_redis_class.assert_called_once()
+    orig = rl_module.redis_client
+    try:
+        rl_module.redis_client = None
+        client = get_redis()
+        assert client is mock_client
+        mock_redis_class.assert_called_once()
+    finally:
+        rl_module.redis_client = orig
 
 @patch("app.core.rate_limit.get_redis")
 def test_rate_limit_decorator(mock_get_redis):

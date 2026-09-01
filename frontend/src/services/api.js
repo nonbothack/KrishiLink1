@@ -528,3 +528,49 @@ export async function checkHealth() {
   if (res && res.success) return res;
   return { success: false, mode: isExplicitDemoMode() ? 'demo' : 'offline', status: 'unreachable' };
 }
+
+// 13. Unified Trade Room (Phase 1)
+export async function getTradeRoom(tradeId) {
+  const res = await apiCall(`/api/v1/trades/${tradeId}/room`);
+  if (res && res.success) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to load trade room', message: res?.error };
+}
+
+export async function listTrades(params = {}) {
+  const query = new URLSearchParams();
+  if (params.status) query.set('status', params.status);
+  if (params.crop) query.set('crop', params.crop);
+  if (params.page) query.set('page', params.page);
+  if (params.limit) query.set('limit', params.limit);
+  const qStr = query.toString() ? `?${query.toString()}` : '';
+
+  const res = await apiCall(`/api/v1/trades${qStr}`);
+  if (res && res.success && res.data) {
+    return { success: true, data: res.data.items || [], total: res.data.total || 0, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to load trades', data: [] };
+}
+
+export async function transitionTrade(tradeId, toStatus, reason = null) {
+  const res = await apiCall(`/api/v1/trades/${tradeId}/transition`, {
+    method: 'POST',
+    body: JSON.stringify({ to_status: toStatus, reason })
+  });
+  if (res && res.success) {
+    return { success: true, data: res.data, message: res.message, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to update trade status', message: res?.error };
+}
+
+export async function addTradeNote(tradeId, note) {
+  const res = await apiCall(`/api/v1/trades/${tradeId}/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ note })
+  });
+  if (res && res.success) {
+    return { success: true, data: res.data, message: res.message, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to add note', message: res?.error };
+}

@@ -27,6 +27,7 @@ import MatchesPage from './pages/MatchesPage';
 import OffersPage from './pages/OffersPage';
 import TransactionsPage from './pages/TransactionsPage';
 import GrievancesPage from './pages/GrievancesPage';
+import TradeRoomPage from './pages/TradeRoomPage';
 
 // Protected route: redirects to login if not logged in
 function ProtectedRoute({ children, requiredRole = null }) {
@@ -74,6 +75,7 @@ function App() {
               <Route path="/matches" element={<MatchesPage />} />
               <Route path="/offers" element={<OffersPage />} />
               <Route path="/transactions" element={<TransactionsPage />} />
+              <Route path="/trades/:id" element={<TradeRoomPage />} />
               <Route path="/grievances" element={<GrievancesPage />} />
             </Route>
 

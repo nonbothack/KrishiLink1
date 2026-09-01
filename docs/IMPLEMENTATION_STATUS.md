@@ -1,9 +1,9 @@
 # KRISHILINK — IMPLEMENTATION STATUS TRACKER
 
 **Last Updated:** 1 September 2026  
-**Current Phase:** Phase 0 (Audit Complete) → Entering Phase 0.5 (Foundation Hardening)  
+**Current Phase:** Phase 1 (Trade Aggregate & Unified Trade Room Complete) → Entering Phase 2 (Buyer Demand Procurement Workspace)  
 **Active Git Branch:** `feature/production-rebuild-2.0`  
-**Test Status:** 73 passing tests (`backend/tests/`)  
+**Test Status:** 81 passing tests (`backend/tests/` 100% green)  
 
 ---
 
@@ -12,9 +12,9 @@
 | Phase | Description | Status | Verification & Artifacts |
 | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Comprehensive System Audit** | ✅ **COMPLETE** | `docs/KRISHILINK_IMPLEMENTATION_AUDIT.md` |
-| **Phase 0.5** | **Foundation Hardening & Security Fixes** | ⏳ **PLANNED / READY** | Auth refresh rate limit, logout invalidation, frontend token renewal & revalidation, scoped idempotency, proxy rate limiting, dead code cleanup. |
-| **Phase 1** | **Trade Aggregate & Unified Trade Room** | ⏳ **PLANNED** | Models `Trade`, `TradeTermSnapshot`, `TradeEvent`; `TradeService`; `TradeRoomPage.jsx`. |
-| **Phase 2** | **Buyer Demand Procurement Workspace** | ⏳ **PLANNED** | `BuyerRequirement` CRUD, procurement dashboard, supply gap analysis. |
+| **Phase 0.5** | **Foundation Hardening & Security Fixes** | ✅ **COMPLETE** | Dual token logout revocation, proxy rate limiting, single-flight refresh queue, scoped idempotency, 77 green tests & CI run `33525825645`. |
+| **Phase 1** | **Trade Aggregate & Unified Trade Room** | ✅ **COMPLETE** | Public IDs (`KL-TRD-*`), `TradeTermSnapshot`, `TradeEvent` audit ledger, Unified Trade Room UI (`TradeRoomPage.jsx`), Next Action Derivation FSM, IDOR protection, 81 green tests. |
+| **Phase 2** | **Buyer Demand Procurement Workspace** | ⏳ **READY TO IMPLEMENT** | `BuyerRequirement` CRUD, procurement dashboard, supply gap analysis. |
 | **Phase 3** | **Supply Assembly & Demand-Side Matching** | ⏳ **PLANNED** | Multi-lot assembly for institutional orders, explainable match scoring. |
 | **Phase 4** | **Trade-Scoped Conversation System** | ⏳ **PLANNED** | Models `Conversation`, `Message`, `MessageAttachment`; in-trade chat. |
 | **Phase 5** | **Provider-Neutral Payment Adapter** | ⏳ **PLANNED** | Sandbox/mock adapter, webhook idempotency, truthful status reporting. |

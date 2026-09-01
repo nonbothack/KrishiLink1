@@ -8,7 +8,17 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.idempotency import check_idempotency, save_idempotency
 from app.core.rate_limit import rate_limit
-from app.models import AuditLog, Lot, Offer, OutboxEvent, Reservation, Transaction, User
+from app.models import (
+    AuditLog,
+    Lot,
+    Offer,
+    OutboxEvent,
+    Reservation,
+    TradeEvent,
+    TradeTermSnapshot,
+    Transaction,
+    User,
+)
 from app.modules.notifications.service import NotificationService
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -84,8 +94,10 @@ def create_transaction(data: CreateTxnRequest, request: Request, db: Session = D
     else:
         gross_val = 0.0
 
+    public_id = f"KL-TRD-{uuid.uuid4().hex[:10].upper()}"
     txn = Transaction(
         id=uuid.uuid4(),
+        public_id=public_id,
         lot_id=res.lot_id,
         buyer_id=res.buyer_id,
         seller_id=lot.owner_id if lot else user.id,
@@ -96,6 +108,42 @@ def create_transaction(data: CreateTxnRequest, request: Request, db: Session = D
         idempotency_key=idempotency_key
     )
     db.add(txn)
+
+    # Initialize immutable TradeTermSnapshot
+    price_unit = float(offer.price_per_unit) if offer and offer.price_per_unit else (float(lot.asking_price) if lot and lot.asking_price else (gross_val / float(res.quantity) if float(res.quantity) else 0.0))
+    snap = TradeTermSnapshot(
+        id=uuid.uuid4(),
+        transaction_id=txn.id,
+        lot_id=res.lot_id,
+        buyer_id=res.buyer_id,
+        seller_id=lot.owner_id if lot else user.id,
+        crop_name=lot.crop_name if lot else "Agricultural Produce",
+        grade=lot.grade if lot else "A",
+        quantity=float(res.quantity),
+        unit=lot.unit if lot else "quintal",
+        price_per_unit=price_unit,
+        gross_value=gross_val,
+        estimated_net_realization=round(gross_val * 0.96, 2),
+        delivery_window="Standard 3-5 business days",
+        pickup_location=lot.location_text if lot else "Farm/Warehouse",
+        delivery_location="Buyer Delivery Hub",
+    )
+    db.add(snap)
+
+    # Record initial TradeEvent timeline event
+    init_ev = TradeEvent(
+        id=uuid.uuid4(),
+        transaction_id=txn.id,
+        actor_id=user.id,
+        actor_role=user.role,
+        event_type="DOMAIN_EVENT",
+        from_status=None,
+        to_status="CREATED",
+        title="Trade Agreement Formed",
+        description=f"Agreed {float(res.quantity)} {lot.unit if lot else 'quintal'} of {lot.crop_name if lot else 'Produce'} (Grade {lot.grade if lot else 'A'}) at Rs. {price_unit:,.2f}/{lot.unit if lot else 'quintal'}.",
+    )
+    db.add(init_ev)
+
     res.status = "CONSUMED"
     rid = getattr(request.state, "request_id", str(uuid.uuid4()))
     db.add(AuditLog(actor_id=str(user.id), action="transaction.create", entity="transactions", entity_id=str(txn.id), request_id=rid))
@@ -108,14 +156,14 @@ def create_transaction(data: CreateTxnRequest, request: Request, db: Session = D
             user_id=lot.owner_id,
             type_="order_created",
             title="New Order Confirmed",
-            message=f"Order created for {lot.crop_name} (ID: #{str(txn.id)[:8]}). Value: Rs. {gross_val:,.2f}. Awaiting escrow payment.",
+            message=f"Order created for {lot.crop_name} (ID: #{txn.public_id}). Value: Rs. {gross_val:,.2f}. Awaiting sandbox payment.",
             related_id=txn.id,
             outbox=True
         )
 
     db.commit()
     db.refresh(txn)
-    body = {"success": True, "data": {"id": str(txn.id), "status": txn.status, "lot_id": str(txn.lot_id), "gross_value": float(txn.gross_value) if txn.gross_value else 0.0}, "message": "Transaction created", "request_id": rid}
+    body = {"success": True, "data": {"id": str(txn.id), "public_id": txn.public_id, "status": txn.status, "lot_id": str(txn.lot_id), "gross_value": float(txn.gross_value) if txn.gross_value else 0.0}, "message": "Transaction created", "request_id": rid}
     save_idempotency(request, db, 201, body, user=user)
     return body
 
