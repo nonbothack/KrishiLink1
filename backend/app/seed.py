@@ -83,9 +83,11 @@ def geog(lat, lng):
 def run():
     db: Session = SessionLocal()
     try:
+        crop_map = {}
         for name, uid in FIXED_UUIDS["crops"].items():
-            db.merge(
-                Crop(
+            c = db.query(Crop).filter_by(name=name).first()
+            if not c:
+                c = Crop(
                     id=uid,
                     name=name,
                     category="vegetable"
@@ -95,38 +97,51 @@ def run():
                     else "cash_crop",
                     unit="quintal",
                 )
-            )
-        db.flush()
+                db.add(c)
+                db.flush()
+            crop_map[name] = c.id
 
+        market_map = {}
         for name, uid in FIXED_UUIDS["markets"].items():
             lat, lng = MARKET_COORDS[name]
-            m = db.get(Market, uid)
+            m = db.query(Market).filter_by(name=name).first()
             if not m:
-                db.add(
-                    Market(
-                        id=uid,
-                        name=name,
-                        district="Nashik" if name == "Lasalgaon" else name if name in MARKET_COORDS else "Nashik",
-                        state="Maharashtra",
-                        latitude=lat,
-                        longitude=lng,
-                        location_geog=geog(lat, lng),
-                        market_type="APMC",
-                        is_active=True,
-                    )
+                m = db.get(Market, uid)
+            if not m:
+                m = Market(
+                    id=uid,
+                    name=name,
+                    district="Nashik" if name == "Lasalgaon" else name if name in MARKET_COORDS else "Nashik",
+                    state="Maharashtra",
+                    latitude=lat,
+                    longitude=lng,
+                    location_geog=geog(lat, lng),
+                    market_type="APMC",
+                    is_active=True,
                 )
+                db.add(m)
+                db.flush()
             else:
                 m.latitude = lat
                 m.longitude = lng
                 m.location_geog = geog(lat, lng)
-        db.flush()
+            market_map[name] = m.id
 
         src_id = uuid.UUID("99999999-0000-0000-0000-000000000001")
-        db.merge(PriceSource(id=src_id, name="demo", url="demo://local", adapter="DemoPriceAdapter", is_active=True))
-        db.flush()
+        src = db.get(PriceSource, src_id)
+        if not src:
+            src = db.query(PriceSource).filter_by(name="demo").first()
+        if not src:
+            src = PriceSource(id=src_id, name="demo", url="demo://local", adapter="DemoPriceAdapter", is_active=True)
+            db.add(src)
+            db.flush()
+        else:
+            src_id = src.id
+
         run_id = uuid.UUID("99999999-0000-0000-0000-000000000002")
-        db.merge(
-            IngestionRun(
+        irun = db.get(IngestionRun, run_id)
+        if not irun:
+            irun = IngestionRun(
                 id=run_id,
                 source_id=src_id,
                 status="completed",
@@ -136,17 +151,19 @@ def run():
                 parser_version="1.0",
                 finished_at=datetime.now(timezone.utc),
             )
-        )
-        db.flush()
+            db.add(irun)
+            db.flush()
+        else:
+            run_id = irun.id
 
         from data.demo_data import PRICES
 
         for crop_name, markets in PRICES.items():
-            crop_id = FIXED_UUIDS["crops"].get(crop_name)
+            crop_id = crop_map.get(crop_name)
             if not crop_id:
                 continue
             for market_name, series in markets.items():
-                market_id = FIXED_UUIDS["markets"].get(market_name)
+                market_id = market_map.get(market_name)
                 if not market_id:
                     continue
                 for rec in series:
@@ -154,7 +171,7 @@ def run():
                     h = hashlib.sha256(f"{crop_name}{market_name}{d}{rec['modal_price']}".encode()).hexdigest()[:16]
                     existing = (
                         db.query(PriceObservation)
-                        .filter_by(crop_id=crop_id, market_id=market_id, price_date=d, source_id=src_id)
+                        .filter_by(crop_id=crop_id, market_id=market_id, price_date=d)
                         .first()
                     )
                     if not existing:
@@ -238,12 +255,12 @@ def run():
                 "Mumbai",
                 "Mumbai",
             ),
-            (FIXED_UUIDS["users"]["fpo1"], "fpo1@demo.com", "9900112233", "Nashik FPO", "fpo", "Nashik", "Nashik"),
+            (FIXED_UUIDS["users"]["fpo1"], "fpo1@demo.com", "9900112233", "Nashik Farmer Collective FPO", "fpo", "Nashik", "Nashik"),
             (
                 FIXED_UUIDS["users"]["fpo2"],
                 "fpo2@demo.com",
                 "9900112234",
-                "Marathwada FPO",
+                "Marathwada Agri FPO",
                 "fpo",
                 "Aurangabad",
                 "Aurangabad",
@@ -258,45 +275,46 @@ def run():
                 "Pune",
             ),
         ]
+        user_id_map = {}
         for uid, email, phone, name, role, loc, dist in users:
             lat, lng = MARKET_COORDS.get(dist, MARKET_COORDS["Pune"])
-            u = db.get(User, uid)
+            u = db.query(User).filter((User.id == uid) | (User.email == email) | (User.phone == phone)).first()
             if not u:
-                db.add(
-                    User(
-                        id=uid,
-                        email=email,
-                        phone=phone,
-                        full_name=name,
-                        password_hash=pw,
-                        role=role,
-                        location=loc,
-                        district=dist,
-                        state="Maharashtra",
-                        location_geog=geog(lat, lng),
-                        is_verified=True,
-                        is_active=True,
-                    )
+                u = User(
+                    id=uid,
+                    email=email,
+                    phone=phone,
+                    full_name=name,
+                    password_hash=pw,
+                    role=role,
+                    location=loc,
+                    district=dist,
+                    state="Maharashtra",
+                    location_geog=geog(lat, lng),
+                    is_verified=True,
+                    is_active=True,
                 )
+                db.add(u)
+                db.flush()
             else:
                 u.password_hash = pw
                 u.is_verified = True
+            user_id_map[uid] = u.id
         db.flush()
-        for uid in [
-            FIXED_UUIDS["users"]["ramesh"],
-            FIXED_UUIDS["users"]["sunita"],
-            FIXED_UUIDS["users"]["ganesh"],
-            FIXED_UUIDS["users"]["laxmi"],
-        ]:
-            if not db.query(FarmerProfile).filter_by(user_id=uid).first():
+
+        for user_key in ["ramesh", "sunita", "ganesh", "laxmi"]:
+            uid = user_id_map.get(FIXED_UUIDS["users"][user_key])
+            if uid and not db.query(FarmerProfile).filter_by(user_id=uid).first():
                 db.add(FarmerProfile(user_id=uid, land_area_acres=5.5, primary_crops=["Onion", "Tomato"]))
+
         mp = {
             FIXED_UUIDS["users"]["mehta"]: ("Mehta Traders Pvt Ltd", "trader", ["Onion", "Tomato"], 50, 500),
             FIXED_UUIDS["users"]["agro"]: ("Pune Agro Exports", "exporter", ["Onion", "Soybean"], 200, 2000),
             FIXED_UUIDS["users"]["fresh"]: ("FreshMart Retail", "retailer", ["Tomato", "Potato"], 10, 100),
         }
-        for uid, (bname, btype, crops, mn, mx) in mp.items():
-            if not db.query(BuyerProfile).filter_by(user_id=uid).first():
+        for orig_uid, (bname, btype, crops, mn, mx) in mp.items():
+            uid = user_id_map.get(orig_uid)
+            if uid and not db.query(BuyerProfile).filter_by(user_id=uid).first():
                 lat, lng = MARKET_COORDS.get("Pune", MARKET_COORDS["Pune"])
                 db.add(
                     BuyerProfile(
@@ -311,19 +329,21 @@ def run():
                         location_geog=geog(lat, lng),
                     )
                 )
-        if not db.query(FPOProfile).filter_by(user_id=FIXED_UUIDS["users"]["fpo1"]).first():
+        fpo1_id = user_id_map.get(FIXED_UUIDS["users"]["fpo1"])
+        if fpo1_id and not db.query(FPOProfile).filter_by(user_id=fpo1_id).first():
             db.add(
                 FPOProfile(
-                    user_id=FIXED_UUIDS["users"]["fpo1"],
+                    user_id=fpo1_id,
                     organization_name="Nashik Farmer Collective FPO",
                     member_count=120,
                     primary_crops=["Onion", "Tomato"],
                 )
             )
-        if not db.query(FPOProfile).filter_by(user_id=FIXED_UUIDS["users"]["fpo2"]).first():
+        fpo2_id = user_id_map.get(FIXED_UUIDS["users"]["fpo2"])
+        if fpo2_id and not db.query(FPOProfile).filter_by(user_id=fpo2_id).first():
             db.add(
                 FPOProfile(
-                    user_id=FIXED_UUIDS["users"]["fpo2"],
+                    user_id=fpo2_id,
                     organization_name="Marathwada Agri FPO",
                     member_count=85,
                     primary_crops=["Soybean", "Cotton"],
@@ -420,15 +440,20 @@ def run():
                 "Nashik",
             ),
         ]
-        for lid, owner, crop, pub, qty, grade, price, loc, dist in lots:
-            if not db.get(Lot, uuid.UUID(lid)):
+        for lid, owner_orig, crop, pub, qty, grade, price, loc, dist in lots:
+            lot_uuid = uuid.UUID(lid)
+            existing_lot = db.get(Lot, lot_uuid)
+            if not existing_lot:
+                existing_lot = db.query(Lot).filter_by(public_id=pub).first()
+            if not existing_lot:
                 lat, lng = MARKET_COORDS.get(dist, MARKET_COORDS["Pune"])
-                cid = FIXED_UUIDS["crops"].get(crop)
+                cid = crop_map.get(crop, FIXED_UUIDS["crops"].get(crop))
+                owner_uid = user_id_map.get(owner_orig, owner_orig)
                 db.add(
                     Lot(
-                        id=uuid.UUID(lid),
+                        id=lot_uuid,
                         public_id=pub,
-                        owner_id=owner,
+                        owner_id=owner_uid,
                         crop_id=cid,
                         crop_name=crop,
                         grade=grade,

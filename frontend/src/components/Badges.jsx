@@ -6,26 +6,31 @@
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 export function TrendBadge({ trend, change }) {
-  if (trend === 'RISING') {
+  const t = (trend || '').toUpperCase();
+  const hasChange = change != null && !isNaN(Number(change));
+  const numChange = hasChange ? Number(change) : null;
+  const changeText = numChange != null ? (numChange > 0 ? `+${numChange}%` : `${numChange}%`) : '';
+
+  if (t === 'RISING') {
     return (
       <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 font-semibold text-xs px-2.5 py-1 rounded-full border border-green-200">
         <TrendingUp className="w-3.5 h-3.5" />
-        Rising {change ? `+${change}%` : ''}
+        Rising {changeText}
       </span>
     );
   }
-  if (trend === 'FALLING') {
+  if (t === 'FALLING') {
     return (
       <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 font-semibold text-xs px-2.5 py-1 rounded-full border border-red-200">
         <TrendingDown className="w-3.5 h-3.5" />
-        Falling {change ? `${change}%` : ''}
+        Falling {changeText}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 font-semibold text-xs px-2.5 py-1 rounded-full border border-amber-200">
       <Minus className="w-3.5 h-3.5" />
-      Stable {change ? `${change}%` : ''}
+      Stable {changeText}
     </span>
   );
 }

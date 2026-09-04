@@ -58,6 +58,9 @@ def _safe_uuid_bind_processor(self, dialect):
 UUID.bind_processor = _safe_uuid_bind_processor
 
 
+import json
+
+
 @compiles(ARRAY, "sqlite")
 def compile_array_sqlite(type_, compiler, **kw):
     return "TEXT"
@@ -66,6 +69,73 @@ def compile_array_sqlite(type_, compiler, **kw):
 @compiles(PG_ARRAY, "sqlite")
 def compile_pg_array_sqlite(type_, compiler, **kw):
     return "TEXT"
+
+
+_orig_array_bind_processor = ARRAY.bind_processor
+def _safe_array_bind_processor(self, dialect):
+    proc = _orig_array_bind_processor(self, dialect)
+    if dialect.name == "sqlite":
+        def _sqlite_proc(value):
+            if value is None:
+                return None
+            if isinstance(value, (list, tuple, set)):
+                return json.dumps(list(value))
+            return str(value)
+        return _sqlite_proc
+    return proc
+
+ARRAY.bind_processor = _safe_array_bind_processor
+
+_orig_array_result_processor = ARRAY.result_processor
+def _safe_array_result_processor(self, dialect, coltype):
+    proc = _orig_array_result_processor(self, dialect, coltype)
+    if dialect.name == "sqlite":
+        def _sqlite_res_proc(value):
+            if value is None:
+                return None
+            if isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except Exception:
+                    return [value]
+            return value
+        return _sqlite_res_proc
+    return proc
+
+ARRAY.result_processor = _safe_array_result_processor
+
+_orig_pg_array_bind_processor = PG_ARRAY.bind_processor
+def _safe_pg_array_bind_processor(self, dialect):
+    proc = _orig_pg_array_bind_processor(self, dialect)
+    if dialect.name == "sqlite":
+        def _sqlite_proc(value):
+            if value is None:
+                return None
+            if isinstance(value, (list, tuple, set)):
+                return json.dumps(list(value))
+            return str(value)
+        return _sqlite_proc
+    return proc
+
+PG_ARRAY.bind_processor = _safe_pg_array_bind_processor
+
+_orig_pg_array_result_processor = PG_ARRAY.result_processor
+def _safe_pg_array_result_processor(self, dialect, coltype):
+    proc = _orig_pg_array_result_processor(self, dialect, coltype)
+    if dialect.name == "sqlite":
+        def _sqlite_res_proc(value):
+            if value is None:
+                return None
+            if isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except Exception:
+                    return [value]
+            return value
+        return _sqlite_res_proc
+    return proc
+
+PG_ARRAY.result_processor = _safe_pg_array_result_processor
 
 
 try:

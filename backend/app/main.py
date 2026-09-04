@@ -1,5 +1,7 @@
+import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -26,6 +28,31 @@ from app.modules.storage.router import router as storage_router
 from app.modules.transactions.router import router as transactions_router
 from app.modules.users.router import router as users_router
 
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Auto-seed initial market prices if database has 0 observations
+    try:
+        from app.core.database import SessionLocal
+        from app.models import PriceObservation
+
+        db = SessionLocal()
+        try:
+            obs_count = db.query(PriceObservation).count()
+            if obs_count == 0:
+                logger.info("Database has 0 price observations. Auto-seeding initial data...")
+                from app.seed import run as run_seed
+
+                run_seed()
+                logger.info("Auto-seed completed successfully.")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Auto-seed check encountered error (non-fatal): {e}")
+    yield
+
 
 def create_app() -> FastAPI:
     settings.validate_prod()
@@ -35,6 +62,7 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url=f"{settings.api_v1_prefix}/openapi.json",
+        lifespan=lifespan,
     )
 
     init_otel(app)

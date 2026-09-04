@@ -37,16 +37,19 @@ export async function apiCall(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutMs = options.timeout || 30000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const { timeout: _unused, ...fetchOptions } = options;
 
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeaders(),
-        ...options.headers,
+        ...fetchOptions.headers,
       },
       signal: controller.signal,
-      ...options,
+      ...fetchOptions,
     });
     clearTimeout(timeoutId);
 

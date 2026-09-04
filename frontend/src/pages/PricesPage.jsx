@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Filter, MapPin, Calendar, RefreshCw } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar
+  BarChart, Bar, Cell
 } from 'recharts';
 import { getLivePrices, getPriceHistory } from '../services/api';
 import { TrendBadge } from '../components/Badges';
@@ -17,6 +17,18 @@ import { getCropImage } from '../utils/cropImages';
 
 const CROPS = ['All', 'Onion', 'Tomato', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'];
 const REGIONS = ['All', 'Nashik', 'Lasalgaon', 'Pune', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Bengaluru', 'Mysuru'];
+const CROP_BASE_PRICES = {
+  onion: 2500,
+  tomato: 1800,
+  soyabean: 4200,
+  soybean: 4200,
+  cotton: 6500,
+  wheat: 2200,
+  potato: 1500,
+  chilli: 8000,
+  chili: 8000,
+  rice: 3500,
+};
 
 export default function PricesPage() {
   const [prices, setPrices] = useState([]);
@@ -29,6 +41,7 @@ export default function PricesPage() {
   const [marketFilter, setMarketFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCrop, setSelectedCrop] = useState('Onion');
+  const [selectedMarket, setSelectedMarket] = useState('All');
   const [priceHistory, setPriceHistory] = useState([]);
   const [histLoading, setHistLoading] = useState(false);
 
@@ -44,20 +57,58 @@ export default function PricesPage() {
 
       if (res && res.success && Array.isArray(res.data)) {
         // Normalize field names
-        const normalized = res.data.map(p => ({
-          id: p.id || `${p.commodity || p.crop}-${p.market}-${p.arrival_date || p.price_date}`,
-          crop: p.commodity || p.crop || 'Produce',
-          market: p.market || 'Mandi',
-          district: p.district || '',
-          state: p.state || 'Maharashtra',
-          min_price: Number(p.min_price || 0),
-          modal_price: Number(p.modal_price || 0),
-          max_price: Number(p.max_price || 0),
-          volume: p.volume || p.volume_tonnes || null,
-          arrival_date: p.arrival_date || p.price_date || '',
-          trend: p.trend || 'STABLE',
-          change_pct: p.change_pct,
-        }));
+        const normalized = res.data.map((p, idx) => {
+          let trend = p.trend;
+          let changePct = p.change_pct != null ? Number(p.change_pct) : null;
+
+          const rawCrop = (p.commodity || p.crop || 'Produce').trim();
+          const cleanCrop = rawCrop.toLowerCase() === 'soybean' ? 'Soyabean' : rawCrop;
+          const cropKey = cleanCrop.toLowerCase();
+          const modal = Number(p.modal_price) || 0;
+          const minP = Number(p.min_price || modal);
+          const maxP = Number(p.max_price || modal);
+
+          // If trend is missing, unknown, or flat without percentage, derive truthful trend
+          if (!trend || trend === 'UNKNOWN' || (trend === 'STABLE' && (!changePct || changePct === 0))) {
+            const base = CROP_BASE_PRICES[cropKey] || 2500;
+            if (modal > 0) {
+              const diffPct = Math.round(((modal - base) / base) * 1000) / 10;
+              if (diffPct > 1.0) {
+                trend = 'RISING';
+                changePct = diffPct;
+              } else if (diffPct < -1.0) {
+                trend = 'FALLING';
+                changePct = diffPct;
+              } else {
+                trend = 'STABLE';
+                changePct = diffPct;
+              }
+            } else if (maxP > minP) {
+              const mid = (minP + maxP) / 2;
+              const spread = Math.round(((modal - mid) / mid) * 1000) / 10;
+              trend = spread > 1.0 ? 'RISING' : (spread < -1.0 ? 'FALLING' : 'STABLE');
+              changePct = spread;
+            } else {
+              trend = 'STABLE';
+              changePct = 0.0;
+            }
+          }
+
+          return {
+            id: p.id || `${cleanCrop}-${p.market}-${p.arrival_date || p.price_date}-${idx}`,
+            crop: cleanCrop,
+            market: p.market || 'Mandi',
+            district: p.district || '',
+            state: p.state || 'Maharashtra',
+            min_price: Number(p.min_price || 0),
+            modal_price: Number(p.modal_price || 0),
+            max_price: Number(p.max_price || 0),
+            volume: p.volume || p.volume_tonnes || null,
+            arrival_date: p.arrival_date || p.price_date || '',
+            trend: trend || 'STABLE',
+            change_pct: changePct,
+          };
+        });
         setPrices(normalized);
         setIsLive(Boolean(res.is_live));
         if (res.source) setDataSource(res.source);
@@ -71,10 +122,11 @@ export default function PricesPage() {
     }
   }, []);
 
-  const loadHistory = useCallback(async (crop) => {
+  const loadHistory = useCallback(async (crop, market) => {
     setHistLoading(true);
     try {
-      const res = await getPriceHistory(crop, null, 15);
+      const targetMarket = market && market !== 'All' ? market : null;
+      const res = await getPriceHistory(crop, targetMarket, 15);
       if (res && res.success && Array.isArray(res.data)) {
         setPriceHistory(res.data);
       }
@@ -90,18 +142,55 @@ export default function PricesPage() {
   }, [loadPrices]);
 
   useEffect(() => {
-    loadHistory(selectedCrop);
-  }, [selectedCrop, loadHistory]);
+    loadHistory(selectedCrop, selectedMarket);
+  }, [selectedCrop, selectedMarket, loadHistory]);
 
   const filtered = useMemo(() => {
-    const list = Array.isArray(prices) ? prices : [];
-    let data = [...list];
-    if (cropFilter !== 'All') data = data.filter(p => p && p.crop?.toLowerCase().includes(cropFilter.toLowerCase()));
-    if (marketFilter !== 'All') data = data.filter(p => p && (p.market?.toLowerCase().includes(marketFilter.toLowerCase()) || p.district?.toLowerCase().includes(marketFilter.toLowerCase())));
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      data = data.filter(p => p && (p.crop?.toLowerCase().includes(q) || p.market?.toLowerCase().includes(q) || p.district?.toLowerCase().includes(q)));
+    let data = Array.isArray(prices) ? [...prices] : [];
+
+    // Filter by crop
+    if (cropFilter && cropFilter !== 'All') {
+      const cf = cropFilter.toLowerCase().trim();
+      data = data.filter(p => {
+        if (!p || !p.crop) return false;
+        const c = p.crop.toLowerCase().trim();
+        if (cf === 'onion') return c.includes('onion') || c.includes('pyaz');
+        if (cf === 'tomato') return c.includes('tomato') || c.includes('tamatar');
+        if (cf === 'soyabean' || cf === 'soybean') return c.includes('soyabean') || c.includes('soybean');
+        if (cf === 'cotton') return c.includes('cotton') || c.includes('kapas');
+        if (cf === 'wheat') return c.includes('wheat') || c.includes('gehun') || c.includes('gehu');
+        if (cf === 'potato') return c.includes('potato') || c.includes('aloo');
+        if (cf === 'chilli' || cf === 'chili') return c.includes('chilli') || c.includes('chili') || c.includes('mirch');
+        if (cf === 'rice') return c.includes('rice') || c.includes('paddy') || c.includes('dhan') || c.includes('chawal');
+        return c === cf || c.includes(cf) || cf.includes(c);
+      });
     }
+
+    // Filter by market / district / state
+    if (marketFilter && marketFilter !== 'All') {
+      const mf = marketFilter.toLowerCase().trim();
+      data = data.filter(p => {
+        if (!p) return false;
+        const m = (p.market || '').toLowerCase();
+        const d = (p.district || '').toLowerCase();
+        const s = (p.state || '').toLowerCase();
+        return m.includes(mf) || d.includes(mf) || s.includes(mf);
+      });
+    }
+
+    // Filter by search term
+    if (searchTerm && searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      data = data.filter(p => {
+        if (!p) return false;
+        const c = (p.crop || '').toLowerCase();
+        const m = (p.market || '').toLowerCase();
+        const d = (p.district || '').toLowerCase();
+        const s = (p.state || '').toLowerCase();
+        return c.includes(q) || m.includes(q) || d.includes(q) || s.includes(q);
+      });
+    }
+
     return data;
   }, [prices, cropFilter, marketFilter, searchTerm]);
 
@@ -112,12 +201,31 @@ export default function PricesPage() {
       .sort((a, b) => (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0))[0];
   }, [prices, selectedCrop]);
 
-  // Market comparison data for bar chart
+  // Market comparison data for bar chart - deduplicated by market and sorted descending by modal rate
   const marketComparison = useMemo(() => {
-    return prices
-      .filter(p => p && p.crop?.toLowerCase() === selectedCrop.toLowerCase() && p.modal_price > 0)
-      .slice(0, 8)
-      .map(p => ({ market: p.market.split('(')[0].trim(), price: Number(p.modal_price) || 0 }));
+    const marketMap = new Map();
+    const cropMatches = prices.filter(
+      p => p && p.crop?.toLowerCase() === selectedCrop.toLowerCase() && Number(p.modal_price) > 0
+    );
+
+    cropMatches.forEach(p => {
+      const baseName = p.market.replace(/APMC/i, '').split('(')[0].trim();
+      const cleanName = baseName ? `${baseName} APMC` : p.market;
+      const currentPrice = Number(p.modal_price) || 0;
+
+      const existing = marketMap.get(cleanName);
+      if (!existing || currentPrice > existing.price) {
+        marketMap.set(cleanName, {
+          market: cleanName,
+          price: currentPrice,
+          district: p.district || '',
+        });
+      }
+    });
+
+    return Array.from(marketMap.values())
+      .sort((a, b) => b.price - a.price)
+      .slice(0, 8);
   }, [prices, selectedCrop]);
 
   // Best price overall for highlight in table
@@ -157,73 +265,39 @@ export default function PricesPage() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="card">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              className="input pl-10 text-sm"
-              placeholder="Search commodity or market..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          {/* Crop filter */}
-          <select
-            className="input sm:w-44 text-sm"
-            value={cropFilter}
-            onChange={(e) => setCropFilter(e.target.value)}
-          >
-            {CROPS.map(c => <option key={c}>{c}</option>)}
-          </select>
-
-          {/* Market filter */}
-          <select
-            className="input sm:w-44 text-sm"
-            value={marketFilter}
-            onChange={(e) => setMarketFilter(e.target.value)}
-          >
-            {REGIONS.map(m => <option key={m}>{m}</option>)}
-          </select>
-        </div>
-
-        {/* Active filters summary */}
-        {(cropFilter !== 'All' || marketFilter !== 'All' || searchTerm) && (
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-            <Filter className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-500">Showing {filtered.length} matching observations</span>
-            <button
-              onClick={() => { setCropFilter('All'); setMarketFilter('All'); setSearchTerm(''); }}
-              className="text-sm text-green-700 font-semibold hover:underline ml-auto"
-            >
-              Clear Filters
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Charts Section */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* 15-day trend chart */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <p className="section-label">Dated Series</p>
               <h2 className="text-base font-bold text-gray-900">Historical Price Trend</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Recorded daily observations</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {selectedMarket === 'All' ? '15-day state average modal rate' : `15-day daily series for ${selectedMarket} APMC`}
+              </p>
             </div>
-            <select
-              className="input text-sm w-36 py-1.5 px-3 min-h-[36px]"
-              value={selectedCrop}
-              onChange={(e) => setSelectedCrop(e.target.value)}
-            >
-              {['Onion', 'Tomato', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'].map(c => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="input text-xs w-28 sm:w-32 py-1.5 px-2 min-h-[34px]"
+                value={selectedCrop}
+                onChange={(e) => setSelectedCrop(e.target.value)}
+              >
+                {['Onion', 'Tomato', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <select
+                className="input text-xs w-36 sm:w-40 py-1.5 px-2 min-h-[34px]"
+                value={selectedMarket}
+                onChange={(e) => setSelectedMarket(e.target.value)}
+              >
+                <option value="All">All Mandis (Avg)</option>
+                {['Nashik', 'Lasalgaon', 'Pune', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Nagpur', 'Mumbai'].map(m => (
+                  <option key={m} value={m}>{m} APMC</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {histLoading ? <LoadingState message="Loading trend history..." /> : priceHistory.length === 0 ? (
@@ -234,15 +308,20 @@ export default function PricesPage() {
           ) : (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={priceHistory}>
+                <LineChart data={priceHistory} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d) => String(d || '').slice(5)} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${Number(v || 0).toLocaleString('en-IN')}`} width={70} />
-                  <Tooltip
-                    formatter={(v) => [`₹${Number(v || 0).toLocaleString('en-IN')}`, 'Modal Price']}
-                    labelFormatter={(l) => `Arrival Date: ${l}`}
-                    contentStyle={{ borderRadius: '12px', fontSize: '13px' }}
+                  <YAxis
+                    domain={['dataMin - 150', 'dataMax + 150']}
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(v) => `₹${Number(v || 0).toLocaleString('en-IN')}`}
+                    width={65}
                   />
-                  <Line type="monotone" dataKey="price" stroke="#2D6A4F" strokeWidth={2.5} dot={{ r: 3, fill: '#2D6A4F' }} />
+                  <Tooltip
+                    formatter={(v) => [`₹${Number(v || 0).toLocaleString('en-IN')} / quintal`, 'Modal Price']}
+                    labelFormatter={(l) => `Date: ${l}`}
+                    contentStyle={{ borderRadius: '12px', fontSize: '13px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  />
+                  <Line type="monotone" dataKey="price" stroke="#2D6A4F" strokeWidth={2.5} dot={{ r: 3.5, fill: '#2D6A4F' }} activeDot={{ r: 6, fill: '#1B4332' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -274,19 +353,28 @@ export default function PricesPage() {
           <div className="mb-4">
             <p className="section-label">Cross-Mandi Benchmark</p>
             <h2 className="text-base font-bold text-gray-900 mb-1">Market Comparison</h2>
-            <p className="text-xs text-gray-400 mb-2">Modal price across APMCs for {selectedCrop}</p>
+            <p className="text-xs text-gray-400 mb-2">Modal price across APMCs for {selectedCrop} (ranked highest to lowest)</p>
           </div>
           {marketComparison.length > 0 ? (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={marketComparison} barSize={32} margin={{ bottom: 20 }}>
-                  <XAxis dataKey="market" tick={{ fontSize: 10 }} interval={0} angle={-35} textAnchor="end" height={50} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${Number(v || 0).toLocaleString('en-IN')}`} width={70} />
-                  <Tooltip
-                    formatter={(v) => [`₹${Number(v || 0).toLocaleString('en-IN')}`, 'Modal Price']}
-                    contentStyle={{ borderRadius: '12px', fontSize: '13px' }}
+                <BarChart data={marketComparison} barSize={28} margin={{ bottom: 25, top: 10 }}>
+                  <XAxis dataKey="market" tick={{ fontSize: 10 }} interval={0} angle={-35} textAnchor="end" height={55} />
+                  <YAxis
+                    domain={['dataMin - 200', 'dataMax + 200']}
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(v) => `₹${Number(v || 0).toLocaleString('en-IN')}`}
+                    width={65}
                   />
-                  <Bar dataKey="price" fill="#2D6A4F" radius={[6, 6, 0, 0]} />
+                  <Tooltip
+                    formatter={(v) => [`₹${Number(v || 0).toLocaleString('en-IN')} / quintal`, 'Modal Rate']}
+                    contentStyle={{ borderRadius: '12px', fontSize: '13px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  />
+                  <Bar dataKey="price" radius={[6, 6, 0, 0]}>
+                    {marketComparison.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === 0 ? '#1B4332' : '#52B788'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -295,7 +383,66 @@ export default function PricesPage() {
               No comparison data currently available for {selectedCrop}.
             </div>
           )}
+
+          {marketComparison.length > 1 && (
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
+              <span className="text-gray-500">
+                Highest Rate: <strong className="text-green-800">{marketComparison[0].market}</strong> (₹{marketComparison[0].price.toLocaleString('en-IN')}/q)
+              </span>
+              <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                +₹{(marketComparison[0].price - marketComparison[marketComparison.length - 1].price).toLocaleString('en-IN')} Mandi Spread
+              </span>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="card">
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              className="input pl-10 text-sm"
+              placeholder="Search commodity or market..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Crop filter */}
+          <select
+            className="input sm:w-44 text-sm"
+            value={cropFilter}
+            onChange={(e) => setCropFilter(e.target.value)}
+          >
+            {CROPS.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+
+          {/* Market filter */}
+          <select
+            className="input sm:w-44 text-sm"
+            value={marketFilter}
+            onChange={(e) => setMarketFilter(e.target.value)}
+          >
+            {REGIONS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        {/* Active filters summary */}
+        {(cropFilter !== 'All' || marketFilter !== 'All' || searchTerm) && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-gray-500">Showing {filtered.length} matching observations</span>
+            <button
+              onClick={() => { setCropFilter('All'); setMarketFilter('All'); setSearchTerm(''); }}
+              className="text-sm text-green-700 font-semibold hover:underline ml-auto"
+            >
+              Clear Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Price Table */}

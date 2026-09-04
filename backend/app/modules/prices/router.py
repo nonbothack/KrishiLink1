@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -245,21 +246,36 @@ def get_price_trend(
     market: str | None = None,
 ):
     crop = db.query(Crop).filter(Crop.name.ilike(crop_name)).first()
+    if not crop:
+        crop = db.query(Crop).filter(Crop.name.ilike(f"%{crop_name}%")).first()
 
-    obs = []
+    prices = []
+    market_display = market or "All Mandis (Average)"
     if crop:
-        q = (
-            db.query(PriceObservation)
-            .filter(PriceObservation.crop_id == crop.id)
-            .order_by(PriceObservation.price_date.desc())
-        )
-        if market and market.lower() != "all":
-            m = db.query(Market).filter(Market.name.ilike(market)).first()
+        if market and market.lower() not in ("all", "all mandis", "all mandis (average)", ""):
+            m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
             if m:
-                q = q.filter(PriceObservation.market_id == m.id)
-        obs = q.limit(7).all()
+                market_display = m.name
+                obs = (
+                    db.query(PriceObservation.modal_price)
+                    .filter(PriceObservation.crop_id == crop.id, PriceObservation.market_id == m.id)
+                    .order_by(PriceObservation.price_date.desc())
+                    .limit(7)
+                    .all()
+                )
+                prices = [float(o[0]) for o in obs if o[0]]
+        else:
+            daily_rows = (
+                db.query(func.avg(PriceObservation.modal_price))
+                .filter(PriceObservation.crop_id == crop.id)
+                .group_by(PriceObservation.price_date)
+                .order_by(PriceObservation.price_date.desc())
+                .limit(7)
+                .all()
+            )
+            prices = [float(r[0]) for r in daily_rows if r[0]]
 
-    if not obs:
+    if not prices:
         hist = _generate_synthetic_history(crop_name, 7, market=market)
         prices = [float(o["modal_price"]) for o in hist]
         current_price = prices[-1] if prices else 0
@@ -274,7 +290,7 @@ def get_price_trend(
             "success": True,
             "data": {
                 "crop": c_name,
-                "market": market or "All Markets",
+                "market": market_display,
                 "current_price": current_price,
                 "moving_average": moving_avg,
                 "percentage_change": pct_change,
@@ -286,7 +302,6 @@ def get_price_trend(
             "request_id": getattr(request.state, "request_id", None),
         }
 
-    prices = [float(o.modal_price) for o in obs if o.modal_price]
     current_price = prices[0] if prices else 0
     moving_avg = round(sum(prices) / len(prices), 2) if prices else 0
     pct_change = round(((current_price - moving_avg) / moving_avg) * 100, 2) if moving_avg > 0 else 0
@@ -299,7 +314,7 @@ def get_price_trend(
         "success": True,
         "data": {
             "crop": c_name,
-            "market": market or (obs[0].market_id and "Regional APMC"),
+            "market": market_display,
             "current_price": current_price,
             "moving_average": moving_avg,
             "percentage_change": pct_change,
@@ -321,21 +336,55 @@ def price_history(
     days: int = Query(15, ge=1, le=90),
 ):
     crop = db.query(Crop).filter(Crop.name.ilike(crop_name)).first()
+    if not crop:
+        crop = db.query(Crop).filter(Crop.name.ilike(f"%{crop_name}%")).first()
 
-    items = []
+    data = []
     if crop:
-        q = (
-            db.query(PriceObservation)
-            .filter(PriceObservation.crop_id == crop.id)
-            .order_by(PriceObservation.price_date.desc())
-        )
-        if market and market.lower() != "all":
-            m = db.query(Market).filter(Market.name.ilike(market)).first()
+        if market and market.lower() not in ("all", "all mandis", "all mandis (average)", ""):
+            m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
             if m:
-                q = q.filter(PriceObservation.market_id == m.id)
-        items = list(reversed(q.limit(days).all()))
+                obs = (
+                    db.query(PriceObservation)
+                    .filter(PriceObservation.crop_id == crop.id, PriceObservation.market_id == m.id)
+                    .order_by(PriceObservation.price_date.desc())
+                    .limit(days)
+                    .all()
+                )
+                for o in reversed(obs):
+                    data.append({
+                        "date": o.price_date.isoformat() if hasattr(o.price_date, "isoformat") else str(o.price_date),
+                        "price": float(o.modal_price or 0),
+                        "modal_price": float(o.modal_price or 0),
+                        "min_price": float(o.min_price or 0),
+                        "max_price": float(o.max_price or 0),
+                        "market": m.name,
+                    })
+        else:
+            daily_rows = (
+                db.query(
+                    PriceObservation.price_date,
+                    func.round(func.avg(PriceObservation.modal_price), 0).label("avg_modal"),
+                    func.min(PriceObservation.min_price).label("min_p"),
+                    func.max(PriceObservation.max_price).label("max_p"),
+                )
+                .filter(PriceObservation.crop_id == crop.id)
+                .group_by(PriceObservation.price_date)
+                .order_by(PriceObservation.price_date.desc())
+                .limit(days)
+                .all()
+            )
+            for d, avg_m, min_p, max_p in reversed(daily_rows):
+                data.append({
+                    "date": d.isoformat() if hasattr(d, "isoformat") else str(d),
+                    "price": float(avg_m or 0),
+                    "modal_price": float(avg_m or 0),
+                    "min_price": float(min_p or 0),
+                    "max_price": float(max_p or 0),
+                    "market": "All Mandis (Average)",
+                })
 
-    if not items:
+    if not data:
         data = _generate_synthetic_history(crop_name, days, market=market)
         return {
             "success": True,
@@ -344,19 +393,9 @@ def price_history(
             "request_id": getattr(request.state, "request_id", None),
         }
 
-    data = [
-        {
-            "date": o.price_date.isoformat() if hasattr(o.price_date, "isoformat") else str(o.price_date),
-            "price": float(o.modal_price or 0),
-            "modal_price": float(o.modal_price or 0),
-            "min_price": float(o.min_price or 0),
-            "max_price": float(o.max_price or 0),
-        }
-        for o in items
-    ]
     return {
         "success": True,
-        "data": {"crop": crop.name, "history": data},
+        "data": {"crop": crop.name if crop else crop_name.capitalize(), "history": data},
         "message": f"{len(data)} days",
         "request_id": getattr(request.state, "request_id", None),
     }
