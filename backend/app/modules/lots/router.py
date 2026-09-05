@@ -6,9 +6,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_role
+from app.core.deps import get_optional_current_user, require_role
 from app.core.idempotency import check_idempotency, save_idempotency
-from app.models import Crop, Lot, User
+from app.models import Crop, Lot, Offer, Transaction, User
 from app.modules.lots.service import calculate_farmer_earnings
 
 router = APIRouter(prefix="/lots", tags=["lots"])
@@ -119,6 +119,79 @@ def list_lots(
         "success": True,
         "data": {"items": data, "total": total, "page": page, "limit": limit, "pages": (total + limit - 1) // limit},
         "message": f"{len(data)} lots",
+        "request_id": getattr(request.state, "request_id", None),
+    }
+
+
+@router.get("/farmer-summary", response_model=dict)
+def get_farmer_summary(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_current_user),
+):
+    if not user:
+        return {
+            "success": True,
+            "data": {
+                "active_listings": 0,
+                "active_listings_sub": "No active listings",
+                "offers_received": 0,
+                "offers_received_sub": "0 pending offers",
+                "pending_payments": 0,
+                "pending_payments_formatted": "₹0",
+                "pending_payments_sub": "0 transactions pending",
+            },
+            "message": "Unauthenticated or demo farmer summary",
+            "request_id": getattr(request.state, "request_id", None),
+        }
+
+    user_lots = db.query(Lot).filter(Lot.owner_id == user.id, Lot.deleted_at.is_(None)).all()
+    active_lots = [l for l in user_lots if (l.status or "").lower() in ("published", "active")]
+    crops_summary = []
+    for l in active_lots[:2]:
+        crops_summary.append(f"{int(l.quantity)}{l.unit or 'qtl'} {l.crop_name}")
+    sub_listings = ", ".join(crops_summary) if crops_summary else "No active lots"
+
+    user_lot_ids = [l.id for l in user_lots]
+    offers = (
+        db.query(Offer)
+        .filter((Offer.owner_id == user.id) | (Offer.lot_id.in_(user_lot_ids) if user_lot_ids else False))
+        .all()
+    ) if (user_lots or user) else []
+    pending_offers = [o for o in offers if (o.status or "").lower() == "pending"]
+    accepted_offers = [o for o in offers if (o.status or "").lower() == "accepted"]
+    sub_offers = f"{len(pending_offers)} pending, {len(accepted_offers)} accepted"
+
+    txns = (
+        db.query(Transaction)
+        .filter(
+            Transaction.seller_id == user.id,
+            Transaction.status.in_([
+                "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "PROCESSING", "READY_FOR_DISPATCH",
+                "IN_TRANSIT", "DELIVERED", "payment_pending", "payment_received"
+            ]),
+        )
+        .all()
+    )
+    total_val = sum(float(t.gross_value or 0) for t in txns)
+    if total_val >= 100000:
+        formatted_val = f"₹{total_val / 100000:.1f}L"
+    else:
+        formatted_val = f"₹{total_val:,.0f}"
+    sub_payments = f"{len(txns)} transaction{'s' if len(txns) != 1 else ''} pending"
+
+    return {
+        "success": True,
+        "data": {
+            "active_listings": len(active_lots),
+            "active_listings_sub": sub_listings,
+            "offers_received": len(offers),
+            "offers_received_sub": sub_offers,
+            "pending_payments": total_val,
+            "pending_payments_formatted": formatted_val,
+            "pending_payments_sub": sub_payments,
+        },
+        "message": "Farmer summary retrieved",
         "request_id": getattr(request.state, "request_id", None),
     }
 

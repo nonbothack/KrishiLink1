@@ -16,7 +16,15 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { getCropImage } from '../utils/cropImages';
-import { getPrices, getTrend, getPriceHistory } from '../services/api';
+import {
+  getPrices,
+  getTrend,
+  getPriceHistory,
+  getFarmerDashboardSummary,
+  getNearbyBuyers,
+  getStorageFacilities,
+  getNotifications,
+} from '../services/api';
 import { DEMO_BUYERS, DEMO_STORAGE } from '../data/demoData';
 import { TrendBadge, VerifiedBadge } from '../components/Badges';
 import { LoadingState } from '../components/States';
@@ -40,11 +48,29 @@ function SummaryCard({ title, value, sub, icon: Icon, color, accent }) {
 // ---- Best Price Hero Card (primary level) ----
 function BestPriceHeroCard({ trendData, prices, selectedCrop, t, cropT }) {
   const priceList = Array.isArray(prices) ? prices : [];
-  const best = priceList
-    .filter(p => p && p.crop === selectedCrop)
+  let best = priceList
+    .filter(p => p && p.crop && p.crop.toLowerCase() === selectedCrop?.toLowerCase())
     .sort((a, b) => (b.modal_price || 0) - (a.modal_price || 0))[0];
 
-  if (!best) return null;
+  // Graceful fallback to trendData if crop is not in initial batch
+  if (!best && trendData?.current_price) {
+    best = {
+      crop: selectedCrop,
+      market: trendData.market || 'Lasalgaon',
+      modal_price: trendData.current_price,
+      min_price: Math.round(trendData.current_price * 0.95),
+      max_price: Math.round(trendData.current_price * 1.05),
+      volume: 450,
+    };
+  }
+
+  if (!best) {
+    return (
+      <div className="card-primary col-span-2 relative overflow-hidden flex items-center justify-center p-6 min-h-[160px]">
+        <p className="text-sm text-gray-500">Fetching latest mandi prices...</p>
+      </div>
+    );
+  }
 
   const isRising = trendData?.trend === 'RISING';
   const isFalling = trendData?.trend === 'FALLING';
@@ -59,7 +85,7 @@ function BestPriceHeroCard({ trendData, prices, selectedCrop, t, cropT }) {
         <div className="flex-1 min-w-0">
           <p className="section-label">{t('todaysBestPrice') || "Today's Best Price"}</p>
           <div className="flex items-end gap-3 mt-1 flex-wrap">
-            <span className="stat-number">₹{best.modal_price.toLocaleString('en-IN')}</span>
+            <span className="stat-number">₹{Number(best.modal_price || 0).toLocaleString('en-IN')}</span>
             <span className="text-sm text-gray-500 mb-1 font-medium">{t('perQuintal') || 'per quintal'}</span>
           </div>
 
@@ -105,9 +131,9 @@ function BestPriceHeroCard({ trendData, prices, selectedCrop, t, cropT }) {
 
       {/* Bottom row — min/max context */}
       <div className="mt-4 pt-4 border-t border-green-100 flex items-center gap-6 text-xs text-gray-500">
-        <span>{t('minPrice') || 'Min'}: <strong className="text-gray-700">₹{best.min_price.toLocaleString('en-IN')}</strong></span>
-        <span>{t('maxPrice') || 'Max'}: <strong className="text-gray-700">₹{best.max_price.toLocaleString('en-IN')}</strong></span>
-        <span>Vol: <strong className="text-gray-700">{best.volume}T</strong></span>
+        <span>{t('minPrice') || 'Min'}: <strong className="text-gray-700">₹{Number(best.min_price || best.modal_price || 0).toLocaleString('en-IN')}</strong></span>
+        <span>{t('maxPrice') || 'Max'}: <strong className="text-gray-700">₹{Number(best.max_price || best.modal_price || 0).toLocaleString('en-IN')}</strong></span>
+        <span>Vol: <strong className="text-gray-700">{best.volume ? `${best.volume}T` : 'Active'}</strong></span>
         <span className="ml-auto text-[10px] bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full">Best nearby price</span>
       </div>
     </div>
@@ -154,20 +180,60 @@ export default function FarmerDashboard() {
   const [trendData, setTrendData] = useState(null);
   const [priceHistory, setPriceHistory] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState('Onion');
+  const [summary, setSummary] = useState({
+    active_listings: 0,
+    active_listings_sub: 'No active listings',
+    offers_received: 0,
+    offers_received_sub: '0 pending offers',
+    pending_payments_count: 0,
+    pending_payments_total: 0,
+    pending_payments_formatted: '₹0',
+    pending_payments_sub: 'No pending payments',
+  });
+  const [buyers, setBuyers] = useState([]);
+  const [storage, setStorage] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        const [priceRes, trendRes, histRes] = await Promise.all([
-          getPrices(),
+        const [
+          priceRes,
+          trendRes,
+          histRes,
+          summaryRes,
+          buyersRes,
+          storageRes,
+          notifRes,
+        ] = await Promise.all([
+          getPrices(null, null, 100),
           getTrend(selectedCrop, 'Lasalgaon'),
-          getPriceHistory(selectedCrop, 'Lasalgaon', 14),
+          getPriceHistory(selectedCrop, 'Lasalgaon', 15),
+          getFarmerDashboardSummary(),
+          getNearbyBuyers({ crop: selectedCrop }),
+          getStorageFacilities(),
+          getNotifications(),
         ]);
+
         if (priceRes && priceRes.success && priceRes.data) setPrices(priceRes.data);
         if (trendRes && trendRes.success && trendRes.data) setTrendData(trendRes.data);
         if (histRes && histRes.success && histRes.data) setPriceHistory(histRes.data);
+        if (summaryRes && summaryRes.success && summaryRes.data) setSummary(summaryRes.data);
+        if (buyersRes && buyersRes.success && Array.isArray(buyersRes.data) && buyersRes.data.length > 0) {
+          setBuyers(buyersRes.data);
+        } else {
+          setBuyers(DEMO_BUYERS);
+        }
+        if (storageRes && storageRes.success && Array.isArray(storageRes.data) && storageRes.data.length > 0) {
+          setStorage(storageRes.data);
+        } else {
+          setStorage(DEMO_STORAGE);
+        }
+        if (notifRes && notifRes.success && Array.isArray(notifRes.data)) {
+          setNotifications(notifRes.data);
+        }
       } catch (err) {
         console.warn('Dashboard loadData fallback:', err);
       } finally {
@@ -179,11 +245,11 @@ export default function FarmerDashboard() {
 
   const movingAvg = trendData?.moving_average || 0;
 
-  // Recent activity feed
-  const activity = [
-    { label: 'Offer accepted for 50qtl Onion at ₹1,850', time: '2 hours ago', icon: CheckCircle2, color: 'text-green-600 bg-green-50' },
-    { label: 'New buyer inquiry from Nashik', time: 'Yesterday', icon: ArrowUpRight, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Payment of ₹92,500 escrowed', time: '3 days ago', icon: Wallet, color: 'text-amber-600 bg-amber-50' },
+  // Fallback activity feed when user has 0 notifications
+  const defaultActivity = [
+    { label: 'Market price ledger verified across 8 APMCs', time: 'Today', icon: CheckCircle2, color: 'text-green-600 bg-green-50' },
+    { label: 'Connected to direct buyer marketplace', time: 'Active', icon: ArrowUpRight, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Smart contract escrow ready for transactions', time: 'Secured', icon: Wallet, color: 'text-amber-600 bg-amber-50' },
   ];
 
   const crops = ['Onion', 'Tomato', 'Soybean', 'Cotton'];
@@ -223,9 +289,30 @@ export default function FarmerDashboard() {
         
         {/* Secondary Summary Cards */}
         <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SummaryCard title={t('activeListings') || 'Active Listings'} value="2" sub="500qtl Onion, 80qtl Tomato" icon={Package} color="bg-blue-50 text-blue-600" accent="accent-bar-blue" />
-          <SummaryCard title={t('offersReceived') || 'Offers Received'} value="3" sub="2 pending, 1 accepted" icon={FileText} color="bg-purple-50 text-purple-600" accent="accent-bar-purple" />
-          <SummaryCard title={t('pendingPayments') || 'Pending Payments'} value="₹2.3L" sub="1 transaction pending" icon={Wallet} color="bg-amber-50 text-amber-600" accent="accent-bar-amber" />
+          <SummaryCard
+            title={t('activeListings') || 'Active Listings'}
+            value={summary.active_listings}
+            sub={summary.active_listings_sub}
+            icon={Package}
+            color="bg-blue-50 text-blue-600"
+            accent="accent-bar-blue"
+          />
+          <SummaryCard
+            title={t('offersReceived') || 'Offers Received'}
+            value={summary.offers_received}
+            sub={summary.offers_received_sub}
+            icon={FileText}
+            color="bg-purple-50 text-purple-600"
+            accent="accent-bar-purple"
+          />
+          <SummaryCard
+            title={t('pendingPayments') || 'Pending Payments'}
+            value={summary.pending_payments_formatted}
+            sub={summary.pending_payments_sub}
+            icon={Wallet}
+            color="bg-amber-50 text-amber-600"
+            accent="accent-bar-amber"
+          />
         </div>
       </div>
 
@@ -396,12 +483,12 @@ export default function FarmerDashboard() {
               </div>
             </div>
             <div className="space-y-3">
-              {DEMO_BUYERS.slice(0, 3).map(buyer => (
+              {(buyers.length > 0 ? buyers : DEMO_BUYERS).slice(0, 3).map(buyer => (
                 <div key={buyer.id} className="border border-gray-100 rounded-xl p-3 hover:border-green-200 transition-colors">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold text-gray-800 text-sm">{buyer.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{buyer.type} · {buyer.crops.join(', ')}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{buyer.type} · {(buyer.crops || []).map(c => cropT(c)).join(', ')}</p>
                       <div className="flex items-center gap-2 mt-1.5">
                         {buyer.verified && <VerifiedBadge />}
                         <span className="flex items-center gap-0.5 text-xs text-amber-600">
@@ -412,7 +499,7 @@ export default function FarmerDashboard() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-green-800">₹{buyer.offer_price.toLocaleString('en-IN')}</p>
+                      <p className="text-sm font-bold text-green-800">₹{Number(buyer.offer_price || 0).toLocaleString('en-IN')}</p>
                       <p className="text-xs text-gray-400">/qtl</p>
                     </div>
                   </div>
@@ -434,7 +521,7 @@ export default function FarmerDashboard() {
               <h2 className="text-base font-bold text-gray-900">{t('nearbyStorage') || 'Nearby Storage'}</h2>
             </div>
             <div className="space-y-3">
-              {DEMO_STORAGE.slice(0, 2).map(s => (
+              {(storage.length > 0 ? storage : DEMO_STORAGE).slice(0, 2).map(s => (
                 <div key={s.id} className="border border-gray-100 rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Warehouse className="w-4 h-4 text-gray-400" />
@@ -459,23 +546,40 @@ export default function FarmerDashboard() {
               <h2 className="text-base font-bold text-gray-900">{t('recentActivity') || 'Recent Activity'}</h2>
             </div>
             <div className="space-y-3">
-              {activity.map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                      <Icon className="w-4 h-4" />
+              {notifications.length > 0 ? (
+                notifications.slice(0, 3).map((item) => (
+                  <div key={item.id} className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-700 font-medium">{item.label}</p>
+                      <p className="text-sm text-gray-700 font-medium">{item.title || item.message}</p>
                       <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
                         <Clock className="w-3 h-3" />
-                        {item.time}
+                        {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                ))
+              ) : (
+                defaultActivity.map((item, i) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-700 font-medium">{item.label}</p>
+                        <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                          <Clock className="w-3 h-3" />
+                          {item.time}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

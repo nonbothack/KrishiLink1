@@ -71,7 +71,7 @@ export async function apiCall(endpoint, options = {}) {
 }
 
 // 1. Market Prices
-export async function getPrices(crop = null, market = null) {
+export async function getPrices(crop = null, market = null, limit = 100) {
   if (isExplicitDemoMode()) {
     let prices = [...DEMO_PRICES];
     if (crop && crop !== 'All') prices = prices.filter(p => p.crop === crop);
@@ -82,6 +82,7 @@ export async function getPrices(crop = null, market = null) {
   const params = new URLSearchParams();
   if (crop && crop !== 'All') params.append('crop', crop);
   if (market && market !== 'All') params.append('market', market);
+  if (limit) params.append('limit', limit);
 
   const res = await apiCall(`/api/v1/prices?${params}`);
   if (res && res.success && res.data) {
@@ -218,6 +219,27 @@ export async function createLot(lotData) {
     return { ...res, provenance: 'live' };
   }
   return { success: false, error: res?.error || 'Failed to create listing', message: res?.error };
+}
+
+export async function getFarmerDashboardSummary() {
+  const res = await apiCall('/api/v1/lots/farmer-summary');
+  if (res && res.success && res.data) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return {
+    success: false,
+    error: res?.error || 'Failed to load farmer summary',
+    data: {
+      active_listings: 0,
+      active_listings_sub: 'No active listings',
+      offers_received: 0,
+      offers_received_sub: '0 pending offers',
+      pending_payments_count: 0,
+      pending_payments_total: 0,
+      pending_payments_formatted: '₹0',
+      pending_payments_sub: 'No pending payments'
+    }
+  };
 }
 
 // 5. Buyer Matches (7-factor explainable matchmaking)
@@ -373,13 +395,37 @@ export async function getStorageFacilities() {
     return { success: true, data: DEMO_STORAGE, provenance: 'demo' };
   }
 
-  const res = await apiCall('/api/v1/storage/facilities');
+  const res = await apiCall('/api/v1/storage');
   if (res && res.success && res.data) {
-    const items = Array.isArray(res.data) ? res.data : (res.data.items || []);
+    const rawItems = Array.isArray(res.data) ? res.data : (res.data.items || []);
+    const items = rawItems.map((s, idx) => ({
+      id: s.id,
+      name: s.name,
+      type: s.type === 'cold_storage' ? 'Cold Storage' : s.type === 'warehouse' ? 'Warehouse' : (s.type || 'Storage'),
+      capacity: s.capacity || 0,
+      available: s.available_capacity ?? s.capacity ?? 0,
+      distance_km: s.distance_km || (10 + idx * 8),
+      price_per_day: s.cost_per_unit || 2.5,
+      location: s.location_text || 'Nashik, Maharashtra',
+    }));
     return { success: true, data: items, provenance: 'live' };
   }
 
   return { success: false, error: res?.error || 'Failed to load storage facilities', data: [] };
+}
+
+// 9b. Nearby Buyers Directory
+export async function getNearbyBuyers({ crop = null, district = null, limit = 6 } = {}) {
+  const params = new URLSearchParams();
+  if (crop && crop !== 'All') params.append('crop', crop);
+  if (district && district !== 'All') params.append('district', district);
+  params.append('limit', limit);
+
+  const res = await apiCall(`/api/v1/users/buyers?${params}`);
+  if (res && res.success && res.data) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to load buyers', data: [] };
 }
 
 // 10. Grievances & Support Tickets

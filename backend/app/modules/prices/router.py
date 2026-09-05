@@ -253,7 +253,9 @@ def get_price_trend(
     market_display = market or "All Mandis (Average)"
     if crop:
         if market and market.lower() not in ("all", "all mandis", "all mandis (average)", ""):
-            m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
+            m = db.query(Market).filter(Market.name.ilike(market)).first()
+            if not m:
+                m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
             if m:
                 market_display = m.name
                 obs = (
@@ -342,7 +344,9 @@ def price_history(
     data = []
     if crop:
         if market and market.lower() not in ("all", "all mandis", "all mandis (average)", ""):
-            m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
+            m = db.query(Market).filter(Market.name.ilike(market)).first()
+            if not m:
+                m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
             if m:
                 obs = (
                     db.query(PriceObservation)
