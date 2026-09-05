@@ -180,6 +180,7 @@ export default function FarmerDashboard() {
   const [trendData, setTrendData] = useState(null);
   const [priceHistory, setPriceHistory] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState('Onion');
+  const [selectedMarket, setSelectedMarket] = useState('Lasalgaon');
   const [summary, setSummary] = useState({
     active_listings: 0,
     active_listings_sub: 'No active listings',
@@ -199,6 +200,7 @@ export default function FarmerDashboard() {
     async function loadData() {
       setLoading(true);
       try {
+        const targetMarket = selectedMarket && selectedMarket !== 'All' ? selectedMarket : null;
         const [
           priceRes,
           trendRes,
@@ -209,8 +211,8 @@ export default function FarmerDashboard() {
           notifRes,
         ] = await Promise.all([
           getPrices(null, null, 100),
-          getTrend(selectedCrop, 'Lasalgaon'),
-          getPriceHistory(selectedCrop, 'Lasalgaon', 15),
+          getTrend(selectedCrop, targetMarket),
+          getPriceHistory(selectedCrop, targetMarket, 15),
           getFarmerDashboardSummary(),
           getNearbyBuyers({ crop: selectedCrop }),
           getStorageFacilities(),
@@ -241,7 +243,7 @@ export default function FarmerDashboard() {
       }
     }
     loadData();
-  }, [selectedCrop]);
+  }, [selectedCrop, selectedMarket]);
 
   const movingAvg = trendData?.moving_average || 0;
 
@@ -252,7 +254,8 @@ export default function FarmerDashboard() {
     { label: 'Smart contract escrow ready for transactions', time: 'Secured', icon: Wallet, color: 'text-amber-600 bg-amber-50' },
   ];
 
-  const crops = ['Onion', 'Tomato', 'Soybean', 'Cotton'];
+  const crops = ['Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'];
+  const markets = ['All', 'Lasalgaon', 'Nashik', 'Pune', 'Mumbai', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Nagpur'];
 
   return (
     <div className="space-y-6">
@@ -326,24 +329,43 @@ export default function FarmerDashboard() {
           <div className="card">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
               <div>
-                <p className="section-label">Market Intelligence</p>
-                <h2 className="text-lg font-bold text-gray-900">{t('historicalPriceTrend') || 'Price Trend'}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{t('sevenDaySignal') || '7-day rule-based signal'}</p>
+                <p className="section-label">{t('datedSeries') || 'Dated Series'}</p>
+                <h2 className="text-lg font-bold text-gray-900">{t('historicalPriceTrend') || 'Historical Price Trend'}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {selectedMarket === 'All'
+                    ? (t('fifteenDayAvgRate') || '15-day state average modal rate')
+                    : `${t('fifteenDaySeriesFor') || '15-day daily series for'} ${selectedMarket} APMC`}
+                </p>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {crops.map(crop => (
-                  <button
-                    key={crop}
-                    onClick={() => setSelectedCrop(crop)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      selectedCrop === crop
-                        ? 'bg-green-800 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {cropT(crop)}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  id="farmer-crop-select"
+                  aria-label="Select crop"
+                  className="input text-xs sm:text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl py-2 px-3 shadow-xs hover:border-green-600 focus:ring-2 focus:ring-green-500 focus:outline-hidden min-h-[38px] cursor-pointer"
+                  value={selectedCrop}
+                  onChange={(e) => setSelectedCrop(e.target.value)}
+                >
+                  {crops.map((c) => (
+                    <option key={c} value={c}>
+                      {cropT(c)}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  id="farmer-market-select"
+                  aria-label="Select market"
+                  className="input text-xs sm:text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl py-2 px-3 shadow-xs hover:border-green-600 focus:ring-2 focus:ring-green-500 focus:outline-hidden min-h-[38px] cursor-pointer"
+                  value={selectedMarket}
+                  onChange={(e) => setSelectedMarket(e.target.value)}
+                >
+                  <option value="All">{t('allMandisAvg') || 'All Mandis (Avg)'}</option>
+                  {markets.filter(m => m !== 'All').map((m) => (
+                    <option key={m} value={m}>
+                      {m} APMC
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
