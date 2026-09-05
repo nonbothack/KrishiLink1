@@ -4,7 +4,7 @@
 // =============================================================
 
 import { createContext, useContext, useState } from 'react';
-import { getTranslation, getGreeting } from '../utils/translations';
+import { getTranslation, getGreeting, getCropTranslation } from '../utils/translations';
 
 const LanguageContext = createContext(null);
 
@@ -21,11 +21,13 @@ export function LanguageProvider({ children }) {
 
   // t('key') gives the translation for the current language
   const t = (key) => getTranslation(language, key);
+  const cropT = (cropName) => getCropTranslation(cropName, language);
 
   const value = {
     language,
     changeLanguage,
     t,
+    cropT,
     greeting: getGreeting(language),
   };
 

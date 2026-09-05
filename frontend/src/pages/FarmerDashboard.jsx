@@ -38,7 +38,7 @@ function SummaryCard({ title, value, sub, icon: Icon, color, accent }) {
 }
 
 // ---- Best Price Hero Card (primary level) ----
-function BestPriceHeroCard({ trendData, prices, selectedCrop }) {
+function BestPriceHeroCard({ trendData, prices, selectedCrop, t, cropT }) {
   const priceList = Array.isArray(prices) ? prices : [];
   const best = priceList
     .filter(p => p && p.crop === selectedCrop)
@@ -57,10 +57,10 @@ function BestPriceHeroCard({ trendData, prices, selectedCrop }) {
 
       <div className="relative flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="section-label">Today's Best Price</p>
+          <p className="section-label">{t('todaysBestPrice') || "Today's Best Price"}</p>
           <div className="flex items-end gap-3 mt-1 flex-wrap">
             <span className="stat-number">₹{best.modal_price.toLocaleString('en-IN')}</span>
-            <span className="text-sm text-gray-500 mb-1 font-medium">per quintal</span>
+            <span className="text-sm text-gray-500 mb-1 font-medium">{t('perQuintal') || 'per quintal'}</span>
           </div>
 
           {/* Market + crop info */}
@@ -68,7 +68,7 @@ function BestPriceHeroCard({ trendData, prices, selectedCrop }) {
             <MapPin className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
             <span className="text-sm font-semibold text-gray-700">{best.market}</span>
             <span className="text-gray-300">·</span>
-            <span className="text-sm text-gray-500">{best.crop}</span>
+            <span className="text-sm text-gray-500">{cropT(best.crop)}</span>
           </div>
 
           {/* Trend indicator */}
@@ -77,20 +77,20 @@ function BestPriceHeroCard({ trendData, prices, selectedCrop }) {
               {isRising ? (
                 <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full border border-green-200">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  Rising {trendData.percentage_change > 0 ? `+${trendData.percentage_change}%` : ''}
+                  {t('rising') || 'Rising'} {trendData.percentage_change > 0 ? `+${trendData.percentage_change}%` : ''}
                 </span>
               ) : isFalling ? (
                 <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-700 text-xs font-bold px-3 py-1.5 rounded-full border border-red-200">
                   <TrendingDown className="w-3.5 h-3.5" />
-                  Falling {trendData.percentage_change}%
+                  {t('falling') || 'Falling'} {trendData.percentage_change}%
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200">
                   <Minus className="w-3.5 h-3.5" />
-                  Stable
+                  {t('stable') || 'Stable'}
                 </span>
               )}
-              <span className="text-xs text-gray-400">7-day signal</span>
+              <span className="text-xs text-gray-400">{t('sevenDaySignal') || '7-day signal'}</span>
             </div>
           )}
         </div>
@@ -105,8 +105,8 @@ function BestPriceHeroCard({ trendData, prices, selectedCrop }) {
 
       {/* Bottom row — min/max context */}
       <div className="mt-4 pt-4 border-t border-green-100 flex items-center gap-6 text-xs text-gray-500">
-        <span>Min: <strong className="text-gray-700">₹{best.min_price.toLocaleString('en-IN')}</strong></span>
-        <span>Max: <strong className="text-gray-700">₹{best.max_price.toLocaleString('en-IN')}</strong></span>
+        <span>{t('minPrice') || 'Min'}: <strong className="text-gray-700">₹{best.min_price.toLocaleString('en-IN')}</strong></span>
+        <span>{t('maxPrice') || 'Max'}: <strong className="text-gray-700">₹{best.max_price.toLocaleString('en-IN')}</strong></span>
         <span>Vol: <strong className="text-gray-700">{best.volume}T</strong></span>
         <span className="ml-auto text-[10px] bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full">Best nearby price</span>
       </div>
@@ -149,7 +149,7 @@ function TrendInfoBox({ trendData }) {
 
 export default function FarmerDashboard() {
   const { user } = useAuth();
-  const { greeting } = useLanguage();
+  const { t, cropT, greeting } = useLanguage();
   const [prices, setPrices] = useState([]);
   const [trendData, setTrendData] = useState(null);
   const [priceHistory, setPriceHistory] = useState([]);
@@ -181,10 +181,9 @@ export default function FarmerDashboard() {
 
   // Recent activity feed
   const activity = [
-    { icon: Package, label: 'Lot listed: 500 qtl Onion', time: '1 day ago', color: 'bg-green-100 text-green-700' },
-    { icon: FileText, label: 'Offer received from Mehta Traders', time: '1 day ago', color: 'bg-blue-100 text-blue-700' },
-    { icon: CheckCircle2, label: 'Offer accepted — Pune Agro Exports', time: '5 days ago', color: 'bg-teal-100 text-teal-700' },
-    { icon: Wallet, label: 'Payment received: ₹2,58,000', time: '2 days ago', color: 'bg-amber-100 text-amber-700' },
+    { label: 'Offer accepted for 50qtl Onion at ₹1,850', time: '2 hours ago', icon: CheckCircle2, color: 'text-green-600 bg-green-50' },
+    { label: 'New buyer inquiry from Nashik', time: 'Yesterday', icon: ArrowUpRight, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Payment of ₹92,500 escrowed', time: '3 days ago', icon: Wallet, color: 'text-amber-600 bg-amber-50' },
   ];
 
   const crops = ['Onion', 'Tomato', 'Soybean', 'Cotton'];
@@ -210,7 +209,7 @@ export default function FarmerDashboard() {
             </div>
           </div>
           <Link to="/sell" className="bg-white text-green-900 hover:bg-green-50 font-bold px-6 py-3 rounded-xl transition-all shadow-sm flex items-center gap-2 whitespace-nowrap active:scale-95">
-            + List Produce
+            + {t('listProduce') || 'List Produce'}
           </Link>
         </div>
       </div>
@@ -219,14 +218,14 @@ export default function FarmerDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         {/* Primary Hero Card */}
         <div className="xl:col-span-2">
-          <BestPriceHeroCard trendData={trendData} prices={prices} selectedCrop={selectedCrop} />
+          <BestPriceHeroCard trendData={trendData} prices={prices} selectedCrop={selectedCrop} t={t} cropT={cropT} />
         </div>
         
         {/* Secondary Summary Cards */}
         <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SummaryCard title="Active Listings" value="2" sub="500qtl Onion, 80qtl Tomato" icon={Package} color="bg-blue-50 text-blue-600" accent="accent-bar-blue" />
-          <SummaryCard title="Offers Received" value="3" sub="2 pending, 1 accepted" icon={FileText} color="bg-purple-50 text-purple-600" accent="accent-bar-purple" />
-          <SummaryCard title="Pending Payments" value="₹2.3L" sub="1 transaction pending" icon={Wallet} color="bg-amber-50 text-amber-600" accent="accent-bar-amber" />
+          <SummaryCard title={t('activeListings') || 'Active Listings'} value="2" sub="500qtl Onion, 80qtl Tomato" icon={Package} color="bg-blue-50 text-blue-600" accent="accent-bar-blue" />
+          <SummaryCard title={t('offersReceived') || 'Offers Received'} value="3" sub="2 pending, 1 accepted" icon={FileText} color="bg-purple-50 text-purple-600" accent="accent-bar-purple" />
+          <SummaryCard title={t('pendingPayments') || 'Pending Payments'} value="₹2.3L" sub="1 transaction pending" icon={Wallet} color="bg-amber-50 text-amber-600" accent="accent-bar-amber" />
         </div>
       </div>
 
@@ -241,8 +240,8 @@ export default function FarmerDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
               <div>
                 <p className="section-label">Market Intelligence</p>
-                <h2 className="text-lg font-bold text-gray-900">Price Trend</h2>
-                <p className="text-xs text-gray-400 mt-0.5">7-day rule-based signal — not AI prediction</p>
+                <h2 className="text-lg font-bold text-gray-900">{t('historicalPriceTrend') || 'Price Trend'}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{t('sevenDaySignal') || '7-day rule-based signal'}</p>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {crops.map(crop => (
@@ -255,7 +254,7 @@ export default function FarmerDashboard() {
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {crop}
+                    {cropT(crop)}
                   </button>
                 ))}
               </div>
@@ -306,15 +305,15 @@ export default function FarmerDashboard() {
                 {trendData && (
                   <div className="grid grid-cols-3 gap-3 mt-4">
                     <div className="bg-gray-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-500 mb-1">Current Price</p>
+                      <p className="text-xs text-gray-500 mb-1">{t('currentPrice') || 'Current Price'}</p>
                       <p className="text-lg font-bold text-green-800">₹{trendData.current_price?.toLocaleString('en-IN')}</p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-500 mb-1">7-Day Average</p>
+                      <p className="text-xs text-gray-500 mb-1">{t('sevenDayAverage') || '7-Day Average'}</p>
                       <p className="text-lg font-bold text-gray-700">₹{trendData.moving_average?.toLocaleString('en-IN')}</p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-500 mb-1">Change</p>
+                      <p className="text-xs text-gray-500 mb-1">{t('change') || 'Change'}</p>
                       <TrendBadge trend={trendData.trend} change={trendData.percentage_change} />
                     </div>
                   </div>
@@ -333,21 +332,21 @@ export default function FarmerDashboard() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="section-label">Live Data</p>
-                <h2 className="text-lg font-bold text-gray-900">Today's Market Prices</h2>
+                <h2 className="text-lg font-bold text-gray-900">{t('marketPrices') || "Today's Market Prices"}</h2>
               </div>
               <Link to="/prices" className="text-green-700 text-sm font-semibold flex items-center gap-1 hover:underline">
-                View All <ArrowUpRight className="w-4 h-4" />
+                {t('viewAll') || 'View All'} <ArrowUpRight className="w-4 h-4" />
               </Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left py-2 text-gray-500 font-medium">Crop</th>
-                    <th className="text-left py-2 text-gray-500 font-medium">Market</th>
-                    <th className="text-right py-2 text-gray-500 font-medium">Price</th>
-                    <th className="text-right py-2 text-gray-500 font-medium hidden sm:table-cell">Change</th>
-                    <th className="text-center py-2 text-gray-500 font-medium">Trend</th>
+                    <th className="text-left py-2 text-gray-500 font-medium">{t('crop') || 'Crop'}</th>
+                    <th className="text-left py-2 text-gray-500 font-medium">{t('market') || 'Market'}</th>
+                    <th className="text-right py-2 text-gray-500 font-medium">{t('price') || 'Price'}</th>
+                    <th className="text-right py-2 text-gray-500 font-medium hidden sm:table-cell">{t('change') || 'Change'}</th>
+                    <th className="text-center py-2 text-gray-500 font-medium">{t('trend') || 'Trend'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -359,7 +358,7 @@ export default function FarmerDashboard() {
                           alt={p.crop || 'Crop'}
                           className="w-7 h-7 rounded-md object-cover flex-shrink-0 border border-gray-100 shadow-2xs"
                         />
-                        <span>{p.crop || 'Crop'}</span>
+                        <span>{cropT(p.crop) || 'Crop'}</span>
                       </td>
                       <td className="py-3 text-gray-600">
                         <span className="flex items-center gap-1">
@@ -393,7 +392,7 @@ export default function FarmerDashboard() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="section-label">Connections</p>
-                <h2 className="text-base font-bold text-gray-900">Nearby Buyers</h2>
+                <h2 className="text-base font-bold text-gray-900">{t('nearbyBuyers') || 'Nearby Buyers'}</h2>
               </div>
             </div>
             <div className="space-y-3">
@@ -418,13 +417,13 @@ export default function FarmerDashboard() {
                     </div>
                   </div>
                   <Link to="/matches" className="btn-primary btn-sm w-full mt-2 text-center text-xs block">
-                    Make Offer
+                    {t('makeOffer') || 'Make Offer'}
                   </Link>
                 </div>
               ))}
             </div>
             <Link to="/matches" className="text-green-700 text-sm font-semibold flex items-center justify-center gap-1 mt-3 hover:underline">
-              Find More Buyers <ArrowUpRight className="w-4 h-4" />
+              {t('findMoreBuyers') || 'Find More Buyers'} <ArrowUpRight className="w-4 h-4" />
             </Link>
           </div>
 
@@ -432,7 +431,7 @@ export default function FarmerDashboard() {
           <div className="card">
             <div className="mb-4">
               <p className="section-label">Logistics</p>
-              <h2 className="text-base font-bold text-gray-900">Nearby Storage</h2>
+              <h2 className="text-base font-bold text-gray-900">{t('nearbyStorage') || 'Nearby Storage'}</h2>
             </div>
             <div className="space-y-3">
               {DEMO_STORAGE.slice(0, 2).map(s => (
@@ -457,7 +456,7 @@ export default function FarmerDashboard() {
           <div className="card">
             <div className="mb-4">
               <p className="section-label">Overview</p>
-              <h2 className="text-base font-bold text-gray-900">Recent Activity</h2>
+              <h2 className="text-base font-bold text-gray-900">{t('recentActivity') || 'Recent Activity'}</h2>
             </div>
             <div className="space-y-3">
               {activity.map((item, i) => {

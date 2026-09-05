@@ -8,6 +8,7 @@ import { getLots, createOffer } from '../services/api';
 import { StatusBadge } from '../components/Badges';
 import { LoadingState } from '../components/States';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 
 function SummaryCard({ title, value, sub, icon: Icon, color }) {
   return (
@@ -26,6 +27,7 @@ function SummaryCard({ title, value, sub, icon: Icon, color }) {
 
 export default function BuyerDashboard() {
   const { user } = useAuth();
+  const { t, cropT } = useLanguage();
   const [lots, setLots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,25 +79,25 @@ export default function BuyerDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Buyer Marketplace
+          {t('buyerMarketplace')}
         </h1>
         <p className="text-gray-500 text-sm mt-1">
-          Welcome {user?.name ? `${user.name.split(' ')[0]} — ` : ''}browse verified produce lots from farmers and FPOs
+          {t('welcome')} {user?.name ? `${user.name.split(' ')[0]} — ` : ''}{t('buyerSubtitle')}
         </p>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard
-          title="Available Lots"
+          title={t('availableLots')}
           value={lotList.filter(l => ['published', 'active'].includes((l?.status || '').toLowerCase())).length}
-          sub="Ready for sourcing"
+          sub={t('readyForSourcing')}
           icon={ShoppingBag}
           color="bg-blue-100 text-blue-700"
         />
-        <SummaryCard title="Verified Mandis" value="8" sub="Direct farm gates" icon={FileText} color="bg-amber-100 text-amber-700" />
-        <SummaryCard title="Avg Quality" value="Grade A" sub="Quality verified" icon={CheckCircle2} color="bg-green-100 text-green-700" />
-        <SummaryCard title="Escrow Security" value="100%" sub="Dispute protection" icon={TrendingUp} color="bg-purple-100 text-purple-700" />
+        <SummaryCard title={t('verifiedMandis')} value="8" sub={t('directFarmGates')} icon={FileText} color="bg-amber-100 text-amber-700" />
+        <SummaryCard title={t('avgQuality')} value="Grade A" sub={t('qualityVerified')} icon={CheckCircle2} color="bg-green-100 text-green-700" />
+        <SummaryCard title={t('escrowSecurity')} value="100%" sub={t('disputeProtection')} icon={TrendingUp} color="bg-purple-100 text-purple-700" />
       </div>
 
       {/* Filters */}
@@ -105,24 +107,26 @@ export default function BuyerDashboard() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               className="input pl-10"
-              placeholder="Search by crop or location..."
+              placeholder={t('searchCropOrLocation')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <select className="input sm:w-44" value={cropFilter} onChange={(e) => setCropFilter(e.target.value)}>
-            {['All', 'Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat'].map(c => <option key={c}>{c}</option>)}
+            {['All', 'Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat'].map(c => (
+              <option key={c} value={c}>{c === 'All' ? t('allCrops') : cropT(c)}</option>
+            ))}
           </select>
         </div>
       </div>
 
       {/* Lot cards */}
-      {loading ? <LoadingState message="Loading produce lots..." /> : (
+      {loading ? <LoadingState message={t('loadingProduceLots')} /> : (
         <>
-          <p className="text-sm text-gray-500">{filtered.length} produce lots available</p>
+          <p className="text-sm text-gray-500">{filtered.length} {t('produceLotsAvailable')}</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map(lot => {
-              const cropName = lot.crop_name || lot.crop || 'Produce';
+              const rawCropName = lot.crop_name || lot.crop || 'Produce';
               const price = Number(lot.asking_price || lot.expected_price || 0);
               const loc = lot.district || lot.location_text || lot.location || 'Maharashtra';
               const status = lot.status || 'PUBLISHED';
@@ -131,7 +135,7 @@ export default function BuyerDashboard() {
                 <div key={lot.id} className="card-hover">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-bold text-gray-900 text-lg">{cropName}</h3>
+                      <h3 className="font-bold text-gray-900 text-lg">{cropT(rawCropName)}</h3>
                       <p className="text-gray-500 text-xs mt-0.5 font-mono">{lot.public_id || `#${String(lot.id).slice(0, 8)}`}</p>
                     </div>
                     <StatusBadge status={status} />
@@ -139,17 +143,17 @@ export default function BuyerDashboard() {
 
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-xs text-gray-500">Quantity</p>
+                      <p className="text-xs text-gray-500">{t('quantity')}</p>
                       <p className="font-bold text-gray-900 mt-0.5">{lot.quantity} {lot.unit || 'qtl'}</p>
                     </div>
                     <div className="bg-green-50 rounded-xl p-3">
-                      <p className="text-xs text-gray-500">Asking Price</p>
-                      <p className="font-bold text-green-800 mt-0.5">₹{price.toLocaleString('en-IN')}<span className="text-xs font-normal text-gray-400">/qtl</span></p>
+                      <p className="text-xs text-gray-500">{t('askingPrice')}</p>
+                      <p className="font-bold text-green-800 mt-0.5">₹{price.toLocaleString('en-IN')}<span className="text-xs font-normal text-gray-400">/{t('quintal')}</span></p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 mb-4 text-sm">
-                    <span className="badge-blue">Grade {lot.grade || 'A'}</span>
+                    <span className="badge-blue">{t('grade')} {lot.grade || 'A'}</span>
                     <span className="flex items-center gap-1 text-gray-500 truncate">
                       <MapPin className="w-3.5 h-3.5 flex-shrink-0" />{loc}
                     </span>
@@ -158,7 +162,7 @@ export default function BuyerDashboard() {
                   {offeringSent[lot.id] === 'sent' ? (
                     <div className="py-2.5 bg-green-50 text-green-700 font-semibold text-sm text-center rounded-xl flex items-center justify-center gap-2">
                       <CheckCircle2 className="w-4 h-4" />
-                      Offer Sent!
+                      {t('offerSent')}
                     </div>
                   ) : (
                     <button
@@ -166,7 +170,7 @@ export default function BuyerDashboard() {
                       disabled={offeringSent[lot.id] === 'sending'}
                       className="btn-primary w-full disabled:opacity-60"
                     >
-                      {offeringSent[lot.id] === 'sending' ? 'Submitting Offer...' : 'Make an Offer'}
+                      {offeringSent[lot.id] === 'sending' ? t('submittingOffer') : t('makeOffer')}
                     </button>
                   )}
                 </div>
@@ -176,7 +180,7 @@ export default function BuyerDashboard() {
 
           {filtered.length === 0 && (
             <div className="card text-center py-12">
-              <p className="text-gray-500">No lots match your search. Try adjusting crop or district filters.</p>
+              <p className="text-gray-500">{t('noLotsMatch')}</p>
             </div>
           )}
         </>

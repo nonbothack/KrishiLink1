@@ -30,7 +30,7 @@ export default function Navbar() {
   const navLinks = [
     { label: t('home'), href: '/' },
     { label: t('howItWorks'), href: '/#how-it-works' },
-    { label: 'Prices', href: '/prices' },
+    { label: t('marketPrices'), href: '/prices' },
     { label: t('map'), href: '/map' },
   ];
 
@@ -149,7 +149,7 @@ export default function Navbar() {
                   onClick={() => setMenuOpen(false)}
                   className="btn-primary w-full text-center"
                 >
-                  My Dashboard
+                  {t('dashboard') || 'My Dashboard'}
                 </Link>
                 <button onClick={handleLogout} className="btn-secondary w-full">
                   {t('logout')}

@@ -7,12 +7,9 @@ import { Link } from 'react-router-dom';
 import {
   TrendingUp, Users, ShieldCheck,
   Truck, BarChart2, ArrowRight, CheckCircle2,
-  MapPin, Sprout, Star, ArrowUpRight
+  Sprout, Star
 } from 'lucide-react';
-import { DEMO_PRICES } from '../data/demoData';
-import { TrendBadge } from '../components/Badges';
 import { useLanguage } from '../hooks/useLanguage';
-import { getCropImage } from '../utils/cropImages';
 
 // -------------------------------------------------------
 // HERO SECTION
@@ -282,82 +279,6 @@ function HowItWorks() {
 }
 
 // -------------------------------------------------------
-// PRICE PREVIEW SECTION
-// -------------------------------------------------------
-function PricePreview() {
-  const { t } = useLanguage();
-  const topPrices = DEMO_PRICES.slice(0, 6);
-
-  return (
-    <section className="py-20 px-4 bg-[#FAFAF7]">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-10">
-          <div>
-            <span className="badge-yellow text-sm mb-2 block">{t('liveDemoData')}</span>
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">
-              {t('todaysMarketPrices')}
-            </h2>
-            <p className="text-gray-500 text-sm mt-1">
-              {t('sampleMandiData')}
-            </p>
-          </div>
-          <Link to="/prices" className="btn-secondary btn-sm flex items-center gap-2 whitespace-nowrap">
-            {t('viewAllPrices')}
-            <ArrowUpRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm bg-white">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-5 py-3.5 text-sm font-semibold text-gray-600">{t('crop')}</th>
-                <th className="text-left px-5 py-3.5 text-sm font-semibold text-gray-600">{t('market')}</th>
-                <th className="text-right px-5 py-3.5 text-sm font-semibold text-gray-600">{t('modalPrice')}</th>
-                <th className="text-right px-5 py-3.5 text-sm font-semibold text-gray-600 hidden sm:table-cell">{t('minMax')}</th>
-                <th className="text-center px-5 py-3.5 text-sm font-semibold text-gray-600">{t('trend')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {topPrices.map((p) => (
-                <tr key={p.id} className="hover:bg-green-50/30 transition-colors">
-                  <td className="px-5 py-4 font-semibold text-gray-800 flex items-center gap-3">
-                    <img
-                      src={getCropImage(p.crop)}
-                      alt={p.crop}
-                      className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-100 shadow-xs"
-                    />
-                    <span>{p.crop}</span>
-                  </td>
-                  <td className="px-5 py-4 text-gray-600 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                    {p.market}
-                  </td>
-                  <td className="px-5 py-4 text-right font-bold text-green-800">
-                    ₹{p.modal_price.toLocaleString('en-IN')}
-                    <span className="text-gray-400 font-normal text-xs">/qtl</span>
-                  </td>
-                  <td className="px-5 py-4 text-right text-gray-500 text-sm hidden sm:table-cell">
-                    ₹{p.min_price.toLocaleString('en-IN')} — ₹{p.max_price.toLocaleString('en-IN')}
-                  </td>
-                  <td className="px-5 py-4 text-center">
-                    <TrendBadge trend={p.trend} change={p.change_pct} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <p className="text-xs text-gray-400 mt-3 text-center">
-          {t('demoDataOnly')}
-        </p>
-      </div>
-    </section>
-  );
-}
-
-// -------------------------------------------------------
 // TRUST SECTION
 // -------------------------------------------------------
 function TrustSection() {
@@ -415,7 +336,6 @@ export default function LandingPage() {
       <Problem />
       <Solution />
       <HowItWorks />
-      <PricePreview />
       <TrustSection />
     </div>
   );

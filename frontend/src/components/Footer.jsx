@@ -4,8 +4,11 @@
 
 import { Link } from 'react-router-dom';
 import { Sprout, GitBranch, Mail } from 'lucide-react';
+import { useLanguage } from '../hooks/useLanguage';
 
 export default function Footer() {
+  const { t } = useLanguage();
+
   return (
     <footer className="bg-green-900 text-white">
       <div className="max-w-7xl mx-auto px-4 py-12 lg:py-16">
@@ -20,7 +23,7 @@ export default function Footer() {
             </div>
 
             <p className="text-green-200 text-sm leading-relaxed">
-              Better Prices. Better Buyers. Better Decisions.
+              {t('tagline')}
             </p>
 
             <p className="text-green-300 text-xs mt-3">
@@ -30,7 +33,7 @@ export default function Footer() {
 
           {/* Features */}
           <div>
-            <h4 className="font-semibold mb-3 text-green-100">Features</h4>
+            <h4 className="font-semibold mb-3 text-green-100">{t('features')}</h4>
 
             <ul className="space-y-2 text-sm text-green-300">
               <li>
@@ -38,7 +41,7 @@ export default function Footer() {
                   to="/prices"
                   className="hover:text-white transition-colors"
                 >
-                  Market Prices
+                  {t('marketPrices')}
                 </Link>
               </li>
 
@@ -47,7 +50,7 @@ export default function Footer() {
                   to="/sell"
                   className="hover:text-white transition-colors"
                 >
-                  Sell Produce
+                  {t('sellProduce')}
                 </Link>
               </li>
 
@@ -56,7 +59,7 @@ export default function Footer() {
                   to="/matches"
                   className="hover:text-white transition-colors"
                 >
-                  Buyer Matching
+                  {t('buyerMatching')}
                 </Link>
               </li>
 
@@ -65,7 +68,7 @@ export default function Footer() {
                   to="/map"
                   className="hover:text-white transition-colors"
                 >
-                  Market Map
+                  {t('map')}
                 </Link>
               </li>
 
@@ -74,7 +77,7 @@ export default function Footer() {
                   to="/transactions"
                   className="hover:text-white transition-colors"
                 >
-                  Transactions
+                  {t('transactions')}
                 </Link>
               </li>
             </ul>
@@ -82,7 +85,7 @@ export default function Footer() {
 
           {/* About */}
           <div>
-            <h4 className="font-semibold mb-3 text-green-100">About</h4>
+            <h4 className="font-semibold mb-3 text-green-100">{t('about')}</h4>
 
             <ul className="space-y-2 text-sm text-green-300">
               <li>
@@ -90,35 +93,35 @@ export default function Footer() {
                   href="#how-it-works"
                   className="hover:text-white transition-colors"
                 >
-                  How It Works
+                  {t('howItWorks')}
                 </a>
               </li>
 
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/farmer/dashboard"
                   className="hover:text-white transition-colors"
                 >
-                  For Farmers
-                </a>
+                  {t('farmer')}
+                </Link>
               </li>
 
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/buyer/dashboard"
                   className="hover:text-white transition-colors"
                 >
-                  For Buyers
-                </a>
+                  {t('buyer')}
+                </Link>
               </li>
 
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/fpo/dashboard"
                   className="hover:text-white transition-colors"
                 >
-                  For FPOs
-                </a>
+                  {t('fpo')}
+                </Link>
               </li>
             </ul>
           </div>
@@ -140,14 +143,13 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-green-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-green-400">
-          <p>© 2026 KrishiLink. Built for Smart India Hackathon.</p>
+          <p>© 2026 KrishiLink. {t('allRightsReserved')}</p>
 
           <p className="text-xs">
-            Running in Demo Mode — Prices are sample data for demonstration
-            only.
+            Smart India Hackathon 2026 · Ministry of Agriculture &amp; Farmers Welfare
           </p>
         </div>
       </div>
     </footer>
   );
-}
+}

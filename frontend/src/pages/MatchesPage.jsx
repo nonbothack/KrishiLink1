@@ -1,8 +1,3 @@
-// =============================================================
-// Buyer Matching Page
-// Shows rule-based matched buyers for a produce lot
-// =============================================================
-
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Star, MapPin, CheckCircle2, Info } from 'lucide-react';
@@ -10,9 +5,10 @@ import { getMatches, createOffer } from '../services/api';
 import { VerifiedBadge } from '../components/Badges';
 import { LoadingState, EmptyState } from '../components/States';
 import { getCropImage } from '../utils/cropImages';
+import { useLanguage } from '../hooks/useLanguage';
 
 // Individual match card
-function MatchCard({ buyer, onMakeOffer }) {
+function MatchCard({ buyer, onMakeOffer, t, cropT }) {
   const [offering, setOffering] = useState(false);
   const [offered, setOffered] = useState(false);
 
@@ -82,26 +78,26 @@ function MatchCard({ buyer, onMakeOffer }) {
       {/* Price + quantity */}
       <div className="grid grid-cols-3 gap-3 mb-4 text-center">
         <div className="bg-green-50 rounded-xl p-2">
-          <p className="text-xs text-gray-500">Offer Price</p>
+          <p className="text-xs text-gray-500">{t('offerPrice') || 'Offer Price'}</p>
           <p className="font-bold text-green-800 text-sm">₹{buyer.offer_price.toLocaleString('en-IN')}</p>
           <p className="text-xs text-gray-400">/qtl</p>
         </div>
         <div className="bg-gray-50 rounded-xl p-2">
           <p className="text-xs text-gray-500">Min Qty</p>
           <p className="font-bold text-gray-800 text-sm">{buyer.min_qty}</p>
-          <p className="text-xs text-gray-400">quintals</p>
+          <p className="text-xs text-gray-400">{t('quintal') || 'quintals'}</p>
         </div>
         <div className="bg-gray-50 rounded-xl p-2">
           <p className="text-xs text-gray-500">Max Qty</p>
           <p className="font-bold text-gray-800 text-sm">{buyer.max_qty}</p>
-          <p className="text-xs text-gray-400">quintals</p>
+          <p className="text-xs text-gray-400">{t('quintal') || 'quintals'}</p>
         </div>
       </div>
 
       {/* Crops */}
       <div className="flex flex-wrap gap-1.5 mb-4">
         {buyer.crops.map(c => (
-          <span key={c} className="badge-green text-xs">{c}</span>
+          <span key={c} className="badge-green text-xs">{cropT(c)}</span>
         ))}
       </div>
 
@@ -117,7 +113,7 @@ function MatchCard({ buyer, onMakeOffer }) {
           disabled={offering}
           className="btn-primary w-full disabled:opacity-60"
         >
-          {offering ? 'Sending Offer...' : 'Make an Offer'}
+          {offering ? 'Sending Offer...' : (t('makeOffer') || 'Make an Offer')}
         </button>
       )}
     </div>
@@ -125,6 +121,7 @@ function MatchCard({ buyer, onMakeOffer }) {
 }
 
 export default function MatchesPage() {
+  const { t, cropT } = useLanguage();
   const location = useLocation();
   const lotFromState = location.state?.lot;
 
@@ -155,7 +152,7 @@ export default function MatchesPage() {
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Buyer Matches</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('buyerMatches') || 'Buyer Matches'}</h1>
         <p className="text-gray-500 text-sm mt-1">
           Rule-based matching — buyers are ranked by crop, grade, quantity, and distance. Not AI.
         </p>
@@ -172,7 +169,7 @@ export default function MatchesPage() {
             />
             <div>
               <p className="font-bold text-gray-900">
-                {lot.quantity} {lot.unit || 'Quintal'} · {lot.crop} · Grade {lot.grade}
+                {lot.quantity} {lot.unit || t('quintal') || 'Quintal'} · {cropT(lot.crop)} · Grade {lot.grade}
               </p>
               <p className="text-sm text-gray-600 flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" />
@@ -185,7 +182,7 @@ export default function MatchesPage() {
             onClick={() => setEditMode(!editMode)}
             className="btn-secondary btn-sm text-sm"
           >
-            {editMode ? 'Search' : 'Change Details'}
+            {editMode ? (t('search') || 'Search') : 'Change Details'}
           </button>
         </div>
 
@@ -193,23 +190,23 @@ export default function MatchesPage() {
         {editMode && (
           <div className="mt-4 pt-4 border-t border-green-200 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="label text-xs">Crop</label>
+              <label className="label text-xs">{t('crop') || 'Crop'}</label>
               <select className="input text-sm" value={lot.crop} onChange={(e) => setLot(p => ({ ...p, crop: e.target.value }))}>
-                {['Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat'].map(c => <option key={c}>{c}</option>)}
+                {['Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat'].map(c => <option key={c} value={c}>{cropT(c)}</option>)}
               </select>
             </div>
             <div>
-              <label className="label text-xs">Quantity (qtl)</label>
+              <label className="label text-xs">{t('quantity') || 'Quantity'} (qtl)</label>
               <input type="number" className="input text-sm" value={lot.quantity} onChange={(e) => setLot(p => ({ ...p, quantity: e.target.value }))} />
             </div>
             <div>
-              <label className="label text-xs">Grade</label>
+              <label className="label text-xs">{t('grade') || 'Grade'}</label>
               <select className="input text-sm" value={lot.grade} onChange={(e) => setLot(p => ({ ...p, grade: e.target.value }))}>
-                {['A', 'B', 'C'].map(g => <option key={g}>Grade {g}</option>)}
+                {['A', 'B', 'C'].map(g => <option key={g} value={g}>Grade {g}</option>)}
               </select>
             </div>
             <div>
-              <label className="label text-xs">Location</label>
+              <label className="label text-xs">{t('location') || 'Location'}</label>
               <input type="text" className="input text-sm" value={lot.location} onChange={(e) => setLot(p => ({ ...p, location: e.target.value }))} />
             </div>
           </div>
@@ -240,7 +237,8 @@ export default function MatchesPage() {
               <MatchCard
                 key={buyer.id}
                 buyer={buyer}
-                onMakeOffer={(b) => setOfferedTo(prev => [...prev, b.id])}
+                t={t}
+                cropT={cropT}
               />
             ))}
           </div>
@@ -249,3 +247,4 @@ export default function MatchesPage() {
     </div>
   );
 }
+

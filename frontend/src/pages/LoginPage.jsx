@@ -7,9 +7,11 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sprout, Tractor, ShoppingBag, Building2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 
 export default function LoginPage() {
   const { login, demoLogin } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,15 +54,15 @@ export default function LoginPage() {
             </div>
             <span className="text-2xl font-bold text-green-900">KrishiLink</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="text-gray-500 text-sm mt-1">Login to your account</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('welcomeBack') || 'Welcome back'}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t('loginToYourAccount') || 'Login to your account'}</p>
         </div>
 
         {/* Demo Login Box */}
         <div className="card mb-6 border-2 border-amber-200 bg-amber-50">
           <div className="flex items-center gap-2 mb-4">
-            <span className="badge-yellow">Demo Mode</span>
-            <p className="text-sm text-amber-700">Try without creating an account</p>
+            <span className="badge-yellow">{t('demoMode')}</span>
+            <p className="text-sm text-amber-700">{t('tryWithoutAccount') || 'Try without creating an account'}</p>
           </div>
           <div className="grid grid-cols-1 gap-2">
             <button
@@ -69,7 +71,7 @@ export default function LoginPage() {
             >
               <Tractor className="w-5 h-5" />
               <div className="text-left">
-                <div className="text-sm">Continue as Farmer</div>
+                <div className="text-sm">{t('continueAsFarmer')}</div>
                 <div className="text-green-200 text-xs">Ramesh Patil, Lasalgaon</div>
               </div>
             </button>
@@ -79,7 +81,7 @@ export default function LoginPage() {
             >
               <ShoppingBag className="w-5 h-5" />
               <div className="text-left">
-                <div className="text-sm">Continue as Buyer</div>
+                <div className="text-sm">{t('continueAsBuyer')}</div>
                 <div className="text-blue-200 text-xs">Mehta Traders, Nashik</div>
               </div>
             </button>
@@ -89,7 +91,7 @@ export default function LoginPage() {
             >
               <Building2 className="w-5 h-5" />
               <div className="text-left">
-                <div className="text-sm">Continue as FPO</div>
+                <div className="text-sm">{t('continueAsFPO')}</div>
                 <div className="text-purple-200 text-xs">Nashik Farmer Collective FPO</div>
               </div>
             </button>
@@ -102,7 +104,7 @@ export default function LoginPage() {
             <div className="w-full border-t border-gray-200" />
           </div>
           <div className="relative flex justify-center">
-            <span className="bg-[#FAFAF7] px-4 text-sm text-gray-400">or login with account</span>
+            <span className="bg-[#FAFAF7] px-4 text-sm text-gray-400">{t('orLoginWithAccount') || 'or login with account'}</span>
           </div>
         </div>
 
@@ -110,7 +112,7 @@ export default function LoginPage() {
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="label">Email or Phone</label>
+              <label className="label">{t('emailOrPhone') || 'Email or Phone'}</label>
               <input
                 type="text"
                 className="input"
@@ -122,7 +124,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="label">Password</label>
+              <label className="label">{t('password') || 'Password'}</label>
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'}
@@ -153,14 +155,14 @@ export default function LoginPage() {
               disabled={loading}
               className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? (t('loading') || 'Logging in...') : (t('login') || 'Login')}
             </button>
           </form>
 
           <p className="text-center text-sm text-gray-500 mt-4">
-            Don't have an account?{' '}
+            {t('dontHaveAccount') || "Don't have an account?"}{' '}
             <Link to="/register" className="text-green-700 font-semibold hover:underline">
-              Sign Up
+              {t('signUp') || 'Sign Up'}
             </Link>
           </p>
         </div>

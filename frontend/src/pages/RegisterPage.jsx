@@ -1,11 +1,8 @@
-// =============================================================
-// Register Page
-// =============================================================
-
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sprout, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 
 const ROLES = [
   { value: 'farmer', label: 'Farmer', emoji: '🌾', desc: 'I grow crops and want to sell at better prices' },
@@ -15,12 +12,20 @@ const ROLES = [
 
 export default function RegisterPage() {
   const { register } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '', email: '', phone: '', password: '', role: 'farmer', location: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const getRoleLabel = (val) => {
+    if (val === 'farmer') return t('farmer');
+    if (val === 'buyer') return t('buyer');
+    if (val === 'fpo') return t('fpo');
+    return val;
+  };
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -84,7 +89,7 @@ export default function RegisterPage() {
             </div>
             <span className="text-2xl font-bold text-green-900">KrishiLink</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('register')}</h1>
           <p className="text-gray-500 text-sm mt-1">Join KrishiLink to access better prices and verified buyers</p>
         </div>
 
@@ -92,7 +97,7 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Role Selection */}
             <div>
-              <label className="label">I am a *</label>
+              <label className="label">{t('role')} *</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {ROLES.map(r => (
                   <button
@@ -106,7 +111,7 @@ export default function RegisterPage() {
                     }`}
                   >
                     <span className="text-2xl mb-1">{r.emoji}</span>
-                    <span className="font-semibold text-sm text-gray-800">{r.label}</span>
+                    <span className="font-semibold text-sm text-gray-800">{getRoleLabel(r.value)}</span>
                     <span className="text-xs text-gray-500 mt-1 leading-tight">{r.desc}</span>
                   </button>
                 ))}
@@ -116,7 +121,7 @@ export default function RegisterPage() {
             {/* Fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="label">Full Name *</label>
+                <label className="label">{t('name')} *</label>
                 <input
                   className="input"
                   placeholder="e.g. Ramesh Patil"
@@ -127,7 +132,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="label">Phone Number *</label>
+                <label className="label">{t('phone')} *</label>
                 <input
                   className="input"
                   placeholder="10-digit mobile number"
@@ -141,7 +146,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="label">Email Address</label>
+                <label className="label">{t('email')}</label>
                 <input
                   className="input"
                   placeholder="e.g. name@gmail.com"
@@ -153,7 +158,7 @@ export default function RegisterPage() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="label">Location (Village / District) *</label>
+                <label className="label">{t('location')} *</label>
                 <input
                   className="input"
                   placeholder="e.g. Ratnagiri or Lasalgaon, Nashik"
@@ -164,7 +169,7 @@ export default function RegisterPage() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="label">Password *</label>
+                <label className="label">{t('password')} *</label>
                 <input
                   className="input"
                   type="password"
@@ -188,13 +193,13 @@ export default function RegisterPage() {
             )}
 
             <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-60">
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? (t('loading') || 'Creating account...') : t('register')}
             </button>
           </form>
 
           <p className="text-center text-sm text-gray-500 mt-4">
-            Already have an account?{' '}
-            <Link to="/login" className="text-green-700 font-semibold hover:underline">Login</Link>
+            {t('alreadyHaveAccount') || 'Already have an account?'}{' '}
+            <Link to="/login" className="text-green-700 font-semibold hover:underline">{t('login')}</Link>
           </p>
         </div>
 
@@ -205,3 +210,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+

@@ -14,6 +14,7 @@ import { getLivePrices, getPriceHistory } from '../services/api';
 import { TrendBadge } from '../components/Badges';
 import { LoadingState, ErrorState } from '../components/States';
 import { getCropImage } from '../utils/cropImages';
+import { useLanguage } from '../hooks/useLanguage';
 
 const CROPS = ['All', 'Onion', 'Tomato', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'];
 const REGIONS = ['All', 'Nashik', 'Lasalgaon', 'Pune', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Bengaluru', 'Mysuru'];
@@ -31,6 +32,7 @@ const CROP_BASE_PRICES = {
 };
 
 export default function PricesPage() {
+  const { t, cropT } = useLanguage();
   const [prices, setPrices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -239,20 +241,20 @@ export default function PricesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <p className="section-label">Mandi Live Insights</p>
+            <p className="section-label">{t('mandiLiveInsights') || 'Mandi Live Insights'}</p>
             {isLive ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse" /> Live Government Data
+                <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse" /> {t('liveAgmarknetFeed') || 'Live Government Data'}
               </span>
             ) : (
               <span className="text-[11px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
-                Verified Mandi Database
+                {t('offlineMandiBenchmark') || 'Verified Mandi Database'}
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">APMC Mandi Modal Prices</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mt-1">{t('apmcMandiModalPrices') || 'APMC Mandi Modal Prices'}</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Daily government arrival rates from agricultural produce markets ({dataSource})
+            {t('dailyGovtArrivalRates') || 'Daily government arrival rates from agricultural produce markets'} ({dataSource})
           </p>
         </div>
 
@@ -261,7 +263,7 @@ export default function PricesPage() {
           className="btn-secondary btn-sm flex items-center gap-2 text-xs self-start sm:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Prices
+          {t('refreshPrices') || 'Refresh Prices'}
         </button>
       </div>
 
@@ -271,10 +273,10 @@ export default function PricesPage() {
         <div className="card">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <p className="section-label">Dated Series</p>
-              <h2 className="text-base font-bold text-gray-900">Historical Price Trend</h2>
+              <p className="section-label">{t('datedSeries') || 'Dated Series'}</p>
+              <h2 className="text-base font-bold text-gray-900">{t('historicalPriceTrend') || 'Historical Price Trend'}</h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                {selectedMarket === 'All' ? '15-day state average modal rate' : `15-day daily series for ${selectedMarket} APMC`}
+                {selectedMarket === 'All' ? (t('fifteenDayAvgRate') || '15-day state average modal rate') : `${t('fifteenDaySeriesFor') || '15-day daily series for'} ${selectedMarket} APMC`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -284,7 +286,7 @@ export default function PricesPage() {
                 onChange={(e) => setSelectedCrop(e.target.value)}
               >
                 {['Onion', 'Tomato', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'].map(c => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{cropT(c)}</option>
                 ))}
               </select>
               <select
@@ -292,7 +294,7 @@ export default function PricesPage() {
                 value={selectedMarket}
                 onChange={(e) => setSelectedMarket(e.target.value)}
               >
-                <option value="All">All Mandis (Avg)</option>
+                <option value="All">{t('allMandisAvg') || 'All Mandis (Avg)'}</option>
                 {['Nashik', 'Lasalgaon', 'Pune', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Nagpur', 'Mumbai'].map(m => (
                   <option key={m} value={m}>{m} APMC</option>
                 ))}
@@ -336,13 +338,13 @@ export default function PricesPage() {
                   className="w-10 h-10 rounded-lg object-cover border border-green-200 shadow-2xs"
                 />
                 <div>
-                  <p className="text-xs text-gray-500 font-semibold">Highest reported modal rate</p>
-                  <p className="font-bold text-green-800">{bestPrice.crop} — {bestPrice.market}</p>
+                  <p className="text-xs text-gray-500 font-semibold">{t('highestReportedModalRate') || 'Highest reported modal rate'}</p>
+                  <p className="font-bold text-green-800">{cropT(bestPrice.crop)} — {bestPrice.market}</p>
                 </div>
               </div>
               <div className="text-right">
                 <p className="text-xl font-bold text-green-800 tracking-tight">₹{Number(bestPrice.modal_price || 0).toLocaleString('en-IN')}</p>
-                <p className="text-xs text-gray-400">per quintal ({bestPrice.arrival_date || 'Today'})</p>
+                <p className="text-xs text-gray-400">{t('perQuintal') || 'per quintal'} ({bestPrice.arrival_date || (t('today') || 'Today')})</p>
               </div>
             </div>
           )}
@@ -351,9 +353,9 @@ export default function PricesPage() {
         {/* Market comparison bar chart */}
         <div className="card">
           <div className="mb-4">
-            <p className="section-label">Cross-Mandi Benchmark</p>
-            <h2 className="text-base font-bold text-gray-900 mb-1">Market Comparison</h2>
-            <p className="text-xs text-gray-400 mb-2">Modal price across APMCs for {selectedCrop} (ranked highest to lowest)</p>
+            <p className="section-label">{t('crossMandiBenchmark') || 'Cross-Mandi Benchmark'}</p>
+            <h2 className="text-base font-bold text-gray-900 mb-1">{t('marketComparisonTitle') || 'Market Comparison'}</h2>
+            <p className="text-xs text-gray-400 mb-2">{t('marketComparisonDesc') || 'Modal price across APMCs for'} {cropT(selectedCrop)} {t('rankedHighestLowest') || '(ranked highest to lowest)'}</p>
           </div>
           {marketComparison.length > 0 ? (
             <div className="h-52">
@@ -367,7 +369,7 @@ export default function PricesPage() {
                     width={65}
                   />
                   <Tooltip
-                    formatter={(v) => [`₹${Number(v || 0).toLocaleString('en-IN')} / quintal`, 'Modal Rate']}
+                    formatter={(v) => [`₹${Number(v || 0).toLocaleString('en-IN')} / quintal`, t('modalPrice') || 'Modal Rate']}
                     contentStyle={{ borderRadius: '12px', fontSize: '13px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                   />
                   <Bar dataKey="price" radius={[6, 6, 0, 0]}>
@@ -380,17 +382,17 @@ export default function PricesPage() {
             </div>
           ) : (
             <div className="h-52 flex items-center justify-center text-gray-400 text-xs bg-gray-50/50 rounded-xl">
-              No comparison data currently available for {selectedCrop}.
+              {t('noMatchingRecords') || `No comparison data currently available for ${cropT(selectedCrop)}.`}
             </div>
           )}
 
           {marketComparison.length > 1 && (
             <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
               <span className="text-gray-500">
-                Highest Rate: <strong className="text-green-800">{marketComparison[0].market}</strong> (₹{marketComparison[0].price.toLocaleString('en-IN')}/q)
+                {t('highestRate') || 'Highest Rate'}: <strong className="text-green-800">{marketComparison[0].market}</strong> (₹{marketComparison[0].price.toLocaleString('en-IN')}/q)
               </span>
               <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                +₹{(marketComparison[0].price - marketComparison[marketComparison.length - 1].price).toLocaleString('en-IN')} Mandi Spread
+                +₹{(marketComparison[0].price - marketComparison[marketComparison.length - 1].price).toLocaleString('en-IN')} {t('mandiSpread') || 'Mandi Spread'}
               </span>
             </div>
           )}
@@ -405,7 +407,7 @@ export default function PricesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               className="input pl-10 text-sm"
-              placeholder="Search commodity or market..."
+              placeholder={t('searchCommodityMarket') || 'Search commodity or market...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -417,7 +419,7 @@ export default function PricesPage() {
             value={cropFilter}
             onChange={(e) => setCropFilter(e.target.value)}
           >
-            {CROPS.map(c => <option key={c} value={c}>{c}</option>)}
+            {CROPS.map(c => <option key={c} value={c}>{c === 'All' ? (t('all') || 'All') : cropT(c)}</option>)}
           </select>
 
           {/* Market filter */}
@@ -426,7 +428,7 @@ export default function PricesPage() {
             value={marketFilter}
             onChange={(e) => setMarketFilter(e.target.value)}
           >
-            {REGIONS.map(m => <option key={m} value={m}>{m}</option>)}
+            {REGIONS.map(m => <option key={m} value={m}>{m === 'All' ? (t('all') || 'All') : m}</option>)}
           </select>
         </div>
 
@@ -434,12 +436,12 @@ export default function PricesPage() {
         {(cropFilter !== 'All' || marketFilter !== 'All' || searchTerm) && (
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
             <Filter className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-500">Showing {filtered.length} matching observations</span>
+            <span className="text-sm text-gray-500">{t('showing') || 'Showing'} {filtered.length} {t('matchingObservations') || 'matching observations'}</span>
             <button
               onClick={() => { setCropFilter('All'); setMarketFilter('All'); setSearchTerm(''); }}
               className="text-sm text-green-700 font-semibold hover:underline ml-auto"
             >
-              Clear Filters
+              {t('clearFilters') || 'Clear Filters'}
             </button>
           </div>
         )}
@@ -452,21 +454,21 @@ export default function PricesPage() {
         <div className="card p-0 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white sticky left-0">
             <div>
-              <h2 className="font-bold text-gray-900">Mandi Price Directory</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Showing {filtered.length} verified observations</p>
+              <h2 className="font-bold text-gray-900">{t('mandiPriceDirectory') || 'Mandi Price Directory'}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{t('showing') || 'Showing'} {filtered.length} {t('verifiedObservations') || 'verified observations'}</p>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-[#f0f9f4]">
                 <tr>
-                  <th className="text-left px-5 py-3 text-sm font-semibold text-green-800">Crop</th>
-                  <th className="text-left px-5 py-3 text-sm font-semibold text-green-800">APMC Mandi</th>
-                  <th className="text-left px-5 py-3 text-sm font-semibold text-green-800 hidden sm:table-cell">Arrival Date</th>
-                  <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">Min</th>
-                  <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">Modal</th>
-                  <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">Max</th>
-                  <th className="text-center px-5 py-3 text-sm font-semibold text-green-800">Trend</th>
+                  <th className="text-left px-5 py-3 text-sm font-semibold text-green-800">{t('crop') || 'Crop'}</th>
+                  <th className="text-left px-5 py-3 text-sm font-semibold text-green-800">{t('market') || 'APMC Mandi'}</th>
+                  <th className="text-left px-5 py-3 text-sm font-semibold text-green-800 hidden sm:table-cell">{t('arrivalDate') || 'Arrival Date'}</th>
+                  <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">{t('minPrice') || 'Min'}</th>
+                  <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">{t('modalPrice') || 'Modal'}</th>
+                  <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">{t('maxPrice') || 'Max'}</th>
+                  <th className="text-center px-5 py-3 text-sm font-semibold text-green-800">{t('trend') || 'Trend'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 bg-white">
@@ -483,8 +485,8 @@ export default function PricesPage() {
                             alt={p.crop}
                             className="w-8 h-8 rounded-md object-cover flex-shrink-0 border border-gray-100 shadow-sm"
                           />
-                          <span>{p.crop}</span>
-                          {isBest && <span className="ml-1 text-[10px] font-bold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">BEST</span>}
+                          <span>{cropT(p.crop)}</span>
+                          {isBest && <span className="ml-1 text-[10px] font-bold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">{t('best') || 'BEST'}</span>}
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-gray-600">
@@ -512,14 +514,14 @@ export default function PricesPage() {
           </div>
           {filtered.length === 0 && (
             <div className="px-6 py-12 text-center text-gray-400 text-sm">
-              No mandi price records match your selected filters.
+              {t('noMatchingRecords') || 'No mandi price records match your selected filters.'}
             </div>
           )}
         </div>
       )}
 
       <p className="text-xs text-gray-400 text-center">
-        * All mandi prices are reported in ₹ per quintal (100 kg) according to Agmarknet / Ministry of Agriculture standard reporting formats.
+        {t('priceDisclaimer') || '* All mandi prices are reported in ₹ per quintal (100 kg) according to Agmarknet / Ministry of Agriculture standard reporting formats.'}
       </p>
     </div>
   );

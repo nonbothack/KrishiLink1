@@ -1,16 +1,13 @@
-// =============================================================
-// Offers Page
-// Farmers & Buyers see and manage negotiations
-// =============================================================
-
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { IndianRupee, CheckCircle2, XCircle, Eye, Clock } from 'lucide-react';
 import { getOffers, acceptOffer, rejectOffer } from '../services/api';
 import { StatusBadge } from '../components/Badges';
 import { LoadingState, EmptyState } from '../components/States';
+import { useLanguage } from '../hooks/useLanguage';
 
 export default function OffersPage() {
+  const { t, cropT } = useLanguage();
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -58,17 +55,25 @@ export default function OffersPage() {
   const normStatus = (s) => (s || '').toLowerCase();
   const filtered = filter === 'all' ? offers : offers.filter(o => normStatus(o.status) === filter);
 
+  const getTabLabel = (val) => {
+    if (val === 'all') return t('all') || 'All';
+    if (val === 'pending') return t('pending') || 'Pending';
+    if (val === 'accepted') return t('accepted') || 'Accepted';
+    if (val === 'rejected') return t('rejected') || 'Rejected';
+    return val;
+  };
+
   const tabs = [
-    { label: 'All', value: 'all', count: offers.length },
-    { label: 'Pending', value: 'pending', count: offers.filter(o => normStatus(o.status) === 'pending').length },
-    { label: 'Accepted', value: 'accepted', count: offers.filter(o => normStatus(o.status) === 'accepted').length },
-    { label: 'Rejected', value: 'rejected', count: offers.filter(o => normStatus(o.status) === 'rejected').length },
+    { label: getTabLabel('all'), value: 'all', count: offers.length },
+    { label: getTabLabel('pending'), value: 'pending', count: offers.filter(o => normStatus(o.status) === 'pending').length },
+    { label: getTabLabel('accepted'), value: 'accepted', count: offers.filter(o => normStatus(o.status) === 'accepted').length },
+    { label: getTabLabel('rejected'), value: 'rejected', count: offers.filter(o => normStatus(o.status) === 'rejected').length },
   ];
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Offers & Negotiations</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('offers') || 'Offers'} &amp; Negotiations</h1>
         <p className="text-gray-500 text-sm mt-1">Review incoming buyer offers and manage negotiations</p>
       </div>
 
@@ -106,7 +111,7 @@ export default function OffersPage() {
         <EmptyState
           title="No offers in this category"
           description="When buyers make offers on your listings, they will appear here."
-          action={<Link to="/sell" className="btn-primary btn-sm">Create a Listing</Link>}
+          action={<Link to="/sell" className="btn-primary btn-sm">{t('createListing') || 'Create a Listing'}</Link>}
         />
       ) : (
         <div className="space-y-4">
@@ -125,7 +130,7 @@ export default function OffersPage() {
                       <StatusBadge status={offer.status} />
                     </div>
                     <p className="text-sm text-gray-600">
-                      {offer.crop_name || offer.crop || 'Produce'} · {offer.quantity} quintals
+                      {cropT(offer.crop_name || offer.crop) || 'Produce'} · {offer.quantity} {t('quintal') || 'quintals'}
                     </p>
 
                     {/* Price breakdown */}
@@ -135,10 +140,10 @@ export default function OffersPage() {
                         <span className="font-bold text-green-800 text-lg">
                           ₹{Number(price).toLocaleString('en-IN')}
                         </span>
-                        <span className="text-gray-400 text-sm">per quintal</span>
+                        <span className="text-gray-400 text-sm">{t('perQuintal') || 'per quintal'}</span>
                       </div>
                       <div className="text-sm text-gray-500">
-                        Total: <span className="font-semibold text-gray-800">₹{Number(total).toLocaleString('en-IN')}</span>
+                        {t('totalAmount') || 'Total'}: <span className="font-semibold text-gray-800">₹{Number(total).toLocaleString('en-IN')}</span>
                       </div>
                     </div>
 
@@ -158,7 +163,7 @@ export default function OffersPage() {
                         className="btn-primary btn-sm flex items-center gap-2 disabled:opacity-60"
                       >
                         <CheckCircle2 className="w-4 h-4" />
-                        Accept Offer
+                        {t('accept') || 'Accept Offer'}
                       </button>
                       <button
                         onClick={() => handleReject(offer.id)}
@@ -166,7 +171,7 @@ export default function OffersPage() {
                         className="btn-secondary btn-sm flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-60"
                       >
                         <XCircle className="w-4 h-4" />
-                        Decline
+                        {t('reject') || 'Decline'}
                       </button>
                     </div>
                   )}
@@ -174,7 +179,7 @@ export default function OffersPage() {
                   {status === 'accepted' && (
                     <Link to="/transactions" className="btn-secondary btn-sm flex items-center gap-2">
                       <Eye className="w-4 h-4" />
-                      View Order
+                      {t('viewTransaction') || 'View Order'}
                     </Link>
                   )}
                 </div>
@@ -186,3 +191,4 @@ export default function OffersPage() {
     </div>
   );
 }
+

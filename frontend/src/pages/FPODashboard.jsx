@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Users, Package, TrendingUp, CheckCircle2, Plus, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 import { createLot } from '../services/api';
 
 // Demo FPO aggregation data
@@ -33,6 +34,7 @@ function SummaryCard({ title, value, icon: Icon, color }) {
 
 export default function FPODashboard() {
   const { user } = useAuth();
+  const { t, cropT } = useLanguage();
   const [selected, setSelected] = useState(FPO_FARMERS.map((_, i) => i));
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(false);
@@ -64,25 +66,25 @@ export default function FPODashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">FPO Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('fpoDashboard')}</h1>
         <p className="text-gray-500 text-sm mt-1">{user?.name || 'Nashik Farmer Collective FPO'}</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard title="Total Members" value="120" icon={Users} color="bg-green-100 text-green-700" />
-        <SummaryCard title="Active Lots" value="3" icon={Package} color="bg-blue-100 text-blue-700" />
-        <SummaryCard title="Pending Offers" value="2" icon={TrendingUp} color="bg-amber-100 text-amber-700" />
-        <SummaryCard title="Completed Sales" value="8" icon={CheckCircle2} color="bg-purple-100 text-purple-700" />
+        <SummaryCard title={t('totalMembers')} value="120" icon={Users} color="bg-green-100 text-green-700" />
+        <SummaryCard title={t('activeLots')} value="3" icon={Package} color="bg-blue-100 text-blue-700" />
+        <SummaryCard title={t('pendingOffers')} value="2" icon={TrendingUp} color="bg-amber-100 text-amber-700" />
+        <SummaryCard title={t('completedSales')} value="8" icon={CheckCircle2} color="bg-purple-100 text-purple-700" />
       </div>
 
       {/* Aggregation Section */}
       <div className="card">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Produce Aggregation</h2>
+            <h2 className="text-lg font-bold text-gray-900">{t('produceAggregation')}</h2>
             <p className="text-gray-500 text-sm mt-0.5">
-              Select farmers to aggregate produce into a single large lot for better bargaining power
+              {t('aggregationSubtitle')}
             </p>
           </div>
         </div>
@@ -109,8 +111,8 @@ export default function FPODashboard() {
                 <p className="text-sm text-gray-500">{farmer.location}</p>
               </div>
               <div className="text-right">
-                <p className="font-bold text-gray-900">{farmer.quantity} qtl</p>
-                <p className="text-xs text-gray-500">Grade {farmer.grade} {farmer.crop}</p>
+                <p className="font-bold text-gray-900">{farmer.quantity} {t('quintal')}</p>
+                <p className="text-xs text-gray-500">{t('grade')} {farmer.grade} {cropT(farmer.crop)}</p>
               </div>
             </label>
           ))}
@@ -118,30 +120,30 @@ export default function FPODashboard() {
 
         {/* Aggregation summary */}
         <div className="bg-green-50 border border-green-200 rounded-2xl p-5 mb-5">
-          <h3 className="font-bold text-green-800 mb-3">Aggregated Lot Preview</h3>
+          <h3 className="font-bold text-green-800 mb-3">{t('aggregatedLotPreview')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-3xl font-bold text-green-800">{totalQty}</p>
-              <p className="text-sm text-gray-600">Total Quintals</p>
+              <p className="text-sm text-gray-600">{t('totalQuintals')}</p>
             </div>
             <div>
               <p className="text-3xl font-bold text-green-800">{selectedFarmers.length}</p>
-              <p className="text-sm text-gray-600">Farmers</p>
+              <p className="text-sm text-gray-600">{t('farmers')}</p>
             </div>
             <div>
-              <p className="text-3xl font-bold text-green-800">{predominantCrop}</p>
-              <p className="text-sm text-gray-600">Crop</p>
+              <p className="text-3xl font-bold text-green-800">{cropT(predominantCrop)}</p>
+              <p className="text-sm text-gray-600">{t('crop')}</p>
             </div>
             <div>
               <p className="text-3xl font-bold text-green-800">
                 ₹{(totalQty * 1850).toLocaleString('en-IN')}
               </p>
-              <p className="text-sm text-gray-600">Est. Value</p>
+              <p className="text-sm text-gray-600">{t('estValue')}</p>
             </div>
           </div>
           <div className="mt-3 bg-white rounded-xl p-3 text-sm text-gray-600">
-            <p className="font-medium text-green-700 mb-1">Why aggregate?</p>
-            <p>Large unified lots attract better buyers, give more bargaining power, and reduce per-unit transport costs.</p>
+            <p className="font-medium text-green-700 mb-1">{t('whyAggregate')}</p>
+            <p>{t('whyAggregateDesc')}</p>
           </div>
         </div>
 
@@ -149,10 +151,10 @@ export default function FPODashboard() {
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-2 text-green-700 font-semibold">
               <CheckCircle2 className="w-5 h-5" />
-              Aggregated lot of {totalQty} quintals created!
+              {t('aggregatedLotCreated')}
             </div>
             <Link to="/matches" className="btn-primary btn-sm flex items-center gap-2 ml-auto">
-              Find Buyers <ArrowRight className="w-4 h-4" />
+              {t('findBuyers')} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         ) : (
@@ -162,7 +164,7 @@ export default function FPODashboard() {
             className="btn-primary flex items-center gap-2 disabled:opacity-60"
           >
             <Plus className="w-5 h-5" />
-            {creating ? 'Creating...' : `Create Aggregated Lot (${totalQty} qtl)`}
+            {creating ? t('loading') : `${t('createAggregatedLot')} (${totalQty} ${t('quintal')})`}
           </button>
         )}
       </div>
@@ -172,22 +174,22 @@ export default function FPODashboard() {
         <Link to="/prices" className="card-hover flex items-center gap-3 group">
           <TrendingUp className="w-8 h-8 text-green-600" />
           <div>
-            <p className="font-semibold text-gray-800">Market Prices</p>
-            <p className="text-xs text-gray-500">Today's mandi rates</p>
+            <p className="font-semibold text-gray-800">{t('marketPrices')}</p>
+            <p className="text-xs text-gray-500">{t('todaysMandiRates')}</p>
           </div>
         </Link>
         <Link to="/offers" className="card-hover flex items-center gap-3 group">
           <Package className="w-8 h-8 text-blue-600" />
           <div>
-            <p className="font-semibold text-gray-800">Offers</p>
-            <p className="text-xs text-gray-500">View buyer offers</p>
+            <p className="font-semibold text-gray-800">{t('offers')}</p>
+            <p className="text-xs text-gray-500">{t('viewBuyerOffers')}</p>
           </div>
         </Link>
         <Link to="/map" className="card-hover flex items-center gap-3 group">
           <Users className="w-8 h-8 text-purple-600" />
           <div>
-            <p className="font-semibold text-gray-800">Market Map</p>
-            <p className="text-xs text-gray-500">Find mandis & buyers</p>
+            <p className="font-semibold text-gray-800">{t('map')}</p>
+            <p className="text-xs text-gray-500">{t('findMandisBuyers')}</p>
           </div>
         </Link>
       </div>

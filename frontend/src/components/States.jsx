@@ -4,9 +4,11 @@
 // =============================================================
 
 import { AlertCircle, RefreshCw, Leaf } from 'lucide-react';
+import { useLanguage } from '../hooks/useLanguage';
 
 // Loading spinner — agricultural pulse animation
-export function LoadingState({ message = 'Loading...' }) {
+export function LoadingState({ message }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-5">
       {/* Layered animation: outer ring + leaf */}
@@ -17,28 +19,29 @@ export function LoadingState({ message = 'Loading...' }) {
         </div>
       </div>
       <div className="text-center">
-        <p className="text-gray-700 font-semibold">{message}</p>
-        <p className="text-xs text-gray-400 mt-1">Fetching latest data...</p>
+        <p className="text-gray-700 font-semibold">{message || t('loading')}</p>
+        <p className="text-xs text-gray-400 mt-1">{t('loadingData')}</p>
       </div>
     </div>
   );
 }
 
 // Error state with retry button
-export function ErrorState({ message = 'Something went wrong. Please try again.', onRetry }) {
+export function ErrorState({ message, onRetry }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-5 text-center">
       <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center border border-red-100">
         <AlertCircle className="w-8 h-8 text-red-500" />
       </div>
       <div>
-        <p className="text-gray-800 font-bold text-lg mb-1">Unable to Load Data</p>
-        <p className="text-gray-500 text-sm max-w-sm leading-relaxed">{message}</p>
+        <p className="text-gray-800 font-bold text-lg mb-1">{t('unableToLoadData')}</p>
+        <p className="text-gray-500 text-sm max-w-sm leading-relaxed">{message || t('somethingWentWrong')}</p>
       </div>
       {onRetry && (
         <button onClick={onRetry} className="btn-secondary btn-sm flex items-center gap-2">
           <RefreshCw className="w-4 h-4" />
-          Try Again
+          {t('tryAgain')}
         </button>
       )}
     </div>
@@ -46,7 +49,8 @@ export function ErrorState({ message = 'Something went wrong. Please try again.'
 }
 
 // Empty state (no data found)
-export function EmptyState({ title = 'No data found', description, action }) {
+export function EmptyState({ title, description, action }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-5 text-center">
       <div className="w-20 h-20 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center border border-green-200 shadow-sm">
@@ -59,7 +63,7 @@ export function EmptyState({ title = 'No data found', description, action }) {
         </div>
       </div>
       <div>
-        <p className="text-gray-800 font-bold text-base mb-1">{title}</p>
+        <p className="text-gray-800 font-bold text-base mb-1">{title || t('noDataFound')}</p>
         {description && (
           <p className="text-gray-500 text-sm max-w-xs leading-relaxed">{description}</p>
         )}
@@ -71,6 +75,7 @@ export function EmptyState({ title = 'No data found', description, action }) {
 
 // Page-level loading for first render
 export function PageLoader() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-[#FAFAF7] flex items-center justify-center">
       <div className="flex flex-col items-center gap-5">
@@ -83,8 +88,8 @@ export function PageLoader() {
           </div>
         </div>
         <div className="text-center">
-          <p className="text-green-800 font-bold text-lg">KrishiLink</p>
-          <p className="text-gray-400 text-xs mt-0.5">India's Agricultural Marketplace</p>
+          <p className="text-green-800 font-bold text-lg">{t('appName')}</p>
+          <p className="text-gray-400 text-xs mt-0.5">{t('indiasAgriMarketplace')}</p>
         </div>
         <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin" />
       </div>

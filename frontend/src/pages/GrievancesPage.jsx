@@ -7,18 +7,20 @@ import { useState, useEffect } from 'react';
 import { AlertTriangle, Plus, Clock, CheckCircle2, MessageSquare, ShieldAlert } from 'lucide-react';
 import { getGrievances, createGrievance } from '../services/api';
 import { LoadingState } from '../components/States';
+import { useLanguage } from '../hooks/useLanguage';
 
 const CATEGORIES = [
-  'Price Dispute',
-  'Quality Dispute',
-  'Payment Delay',
-  'Delivery & Transport',
-  'Listing Accuracy',
-  'Account & Profile',
-  'General Inquiry',
+  { key: 'Price Dispute', labelKey: 'priceDispute' },
+  { key: 'Quality Dispute', labelKey: 'qualityDispute' },
+  { key: 'Payment Delay', labelKey: 'paymentDelay' },
+  { key: 'Delivery & Transport', labelKey: 'deliveryTransport' },
+  { key: 'Listing Accuracy', labelKey: 'listingAccuracy' },
+  { key: 'Account & Profile', labelKey: 'accountProfile' },
+  { key: 'General Inquiry', labelKey: 'generalInquiry' },
 ];
 
 export default function GrievancesPage() {
+  const { t } = useLanguage();
   const [grievances, setGrievances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -93,19 +95,28 @@ export default function GrievancesPage() {
     return 'bg-gray-100 text-gray-700';
   };
 
+  const getStatusLabel = (status = 'OPEN') => {
+    const s = status.toUpperCase();
+    if (s === 'OPEN') return t('open');
+    if (s === 'UNDER_REVIEW' || s === 'IN_PROGRESS') return t('underReview');
+    if (s === 'RESOLVED' || s === 'CLOSED') return t('resolved');
+    if (s === 'REJECTED') return t('rejected');
+    return status;
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Support & Grievances</h1>
-          <p className="text-gray-500 text-sm mt-1">Raise complaints, report listing/delivery issues, or request transaction arbitration.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('supportGrievances')}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t('grievanceSubtitle')}</p>
         </div>
         <button
           onClick={() => { setShowForm(!showForm); setErrorMessage(null); }}
           className="btn-primary flex items-center gap-2 self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
-          {showForm ? 'Close Form' : 'New Ticket'}
+          {showForm ? t('closeForm') : t('newTicket')}
         </button>
       </div>
 
@@ -130,38 +141,38 @@ export default function GrievancesPage() {
         <div className="card border-2 border-green-200 shadow-md">
           <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
-            File a Support Ticket / Dispute
+            {t('fileTicketTitle')}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="label">Category *</label>
+                <label className="label">{t('category')} *</label>
                 <select
                   className="input"
                   value={formData.category}
                   onChange={(e) => setFormData(p => ({ ...p, category: e.target.value }))}
                   required
                 >
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {CATEGORIES.map(c => <option key={c.key} value={c.key}>{t(c.labelKey)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="label">Priority</label>
+                <label className="label">{t('priority')}</label>
                 <select
                   className="input"
                   value={formData.priority}
                   onChange={(e) => setFormData(p => ({ ...p, priority: e.target.value }))}
                 >
-                  <option value="LOW">Low — Question or Minor</option>
-                  <option value="MEDIUM">Medium — General Issue</option>
-                  <option value="HIGH">High — Quality or Delay</option>
-                  <option value="URGENT">Urgent — Payment Dispute</option>
+                  <option value="LOW">{t('lowPriority')}</option>
+                  <option value="MEDIUM">{t('mediumPriority')}</option>
+                  <option value="HIGH">{t('highPriority')}</option>
+                  <option value="URGENT">{t('urgentPriority')}</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="label">Subject / Summary *</label>
+              <label className="label">{t('subjectSummary')} *</label>
               <input
                 className="input"
                 placeholder="Brief summary of the issue (e.g. Quality did not match Grade A specification)"
@@ -174,7 +185,7 @@ export default function GrievancesPage() {
             </div>
 
             <div>
-              <label className="label">Transaction / Order ID (optional)</label>
+              <label className="label">{t('orderIdOptional')}</label>
               <input
                 className="input"
                 placeholder="e.g. 5e179e22-046c-49f5 — leave empty if not related to an order"
@@ -184,7 +195,7 @@ export default function GrievancesPage() {
             </div>
 
             <div>
-              <label className="label">Detailed Description *</label>
+              <label className="label">{t('detailedDescription')} *</label>
               <textarea
                 className="input resize-none"
                 rows={4}
@@ -198,10 +209,10 @@ export default function GrievancesPage() {
 
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-60">
-                {submitting ? 'Submitting...' : 'Submit Support Ticket'}
+                {submitting ? t('submitting') : t('submitTicket')}
               </button>
               <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">
-                Cancel
+                {t('cancel')}
               </button>
             </div>
           </form>
@@ -209,13 +220,13 @@ export default function GrievancesPage() {
       )}
 
       {/* Tickets List */}
-      {loading ? <LoadingState message="Loading your tickets..." /> : (
+      {loading ? <LoadingState message={t('loading')} /> : (
         <div className="space-y-4">
           {grievances.length === 0 ? (
             <div className="card text-center py-12">
               <MessageSquare className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-700 font-semibold">No active support tickets</p>
-              <p className="text-sm text-gray-400 mt-1">If you experience any issues with produce, payments, or logistics, click 'New Ticket' above.</p>
+              <p className="text-gray-700 font-semibold">{t('noActiveTickets')}</p>
+              <p className="text-sm text-gray-400 mt-1">{t('noTicketsDesc')}</p>
             </div>
           ) : (
             grievances.map(g => (
@@ -224,7 +235,7 @@ export default function GrievancesPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${getStatusBadge(g.status)}`}>
-                        {g.status || 'OPEN'}
+                        {getStatusLabel(g.status)}
                       </span>
                       {g.ticket_number && (
                         <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">
@@ -242,14 +253,14 @@ export default function GrievancesPage() {
                     
                     {g.resolution && (
                       <div className="mt-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                        <p className="text-xs font-bold text-green-800 mb-0.5">Official Resolution:</p>
+                        <p className="text-xs font-bold text-green-800 mb-0.5">{t('officialResolution')}</p>
                         <p className="text-sm text-green-900">{g.resolution}</p>
                       </div>
                     )}
                     
                     <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-3">
                       <Clock className="w-3.5 h-3.5" />
-                      <span>Filed on {g.created_at ? new Date(g.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : 'recently'}</span>
+                      <span>{t('filedOn')} {g.created_at ? new Date(g.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : 'recently'}</span>
                     </div>
                   </div>
                 </div>

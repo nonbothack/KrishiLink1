@@ -11,35 +11,11 @@ import {
   Menu, Bell, CheckCheck
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import DemoModeBanner from '../components/DemoModeBanner';
+import { useLanguage } from '../hooks/useLanguage';
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../services/api';
 
-const farmerNav = [
-  { href: '/farmer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/sell',             label: 'List Produce', icon: ShoppingBag },
-  { href: '/matches',          label: 'Find Buyers', icon: ArrowLeftRight },
-  { href: '/offers',           label: 'Offers', icon: FileText },
-  { href: '/transactions',     label: 'Orders', icon: TrendingUp },
-  { href: '/grievances',       label: 'Support & Help', icon: AlertCircle },
-];
 
-const buyerNav = [
-  { href: '/buyer/dashboard',  label: 'Marketplace', icon: ShoppingBag },
-  { href: '/offers',           label: 'My Offers', icon: FileText },
-  { href: '/transactions',     label: 'My Orders', icon: TrendingUp },
-  { href: '/grievances',       label: 'Support & Help', icon: AlertCircle },
-];
-
-const fpoNav = [
-  { href: '/fpo/dashboard',    label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/sell',             label: 'Aggregate Lot', icon: ShoppingBag },
-  { href: '/matches',          label: 'Find Buyers', icon: ArrowLeftRight },
-  { href: '/offers',           label: 'Offers', icon: FileText },
-  { href: '/transactions',     label: 'Transactions', icon: TrendingUp },
-  { href: '/grievances',       label: 'Support & Help', icon: AlertCircle },
-];
-
-function SidebarContent({ user, navItems, location, setSidebarOpen, handleLogout, mobile = false }) {
+function SidebarContent({ user, navItems, location, setSidebarOpen, handleLogout, t, mobile = false }) {
   return (
     <div className={`flex flex-col h-full ${mobile ? 'w-full' : 'w-64'}`}>
       {/* Logo */}
@@ -101,7 +77,7 @@ function SidebarContent({ user, navItems, location, setSidebarOpen, handleLogout
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-green-200 hover:bg-white/10 hover:text-white text-sm font-medium transition-all"
         >
           <LogOut className="w-4.5 h-4.5" />
-          Logout
+          {t('logout') || 'Logout'}
         </button>
       </div>
     </div>
@@ -113,8 +89,34 @@ export default function DashboardLayout() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const { user, logout } = useAuth();
+  const { t, language, changeLanguage } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const farmerNav = [
+    { href: '/farmer/dashboard', label: t('dashboard') || 'Dashboard', icon: LayoutDashboard },
+    { href: '/sell',             label: t('listProduce') || 'List Produce', icon: ShoppingBag },
+    { href: '/matches',          label: t('findBuyers') || 'Find Buyers', icon: ArrowLeftRight },
+    { href: '/offers',           label: t('offers') || 'Offers', icon: FileText },
+    { href: '/transactions',     label: t('transactions') || 'Orders', icon: TrendingUp },
+    { href: '/grievances',       label: t('grievances') || 'Support & Help', icon: AlertCircle },
+  ];
+
+  const buyerNav = [
+    { href: '/buyer/dashboard',  label: t('marketplace') || 'Marketplace', icon: ShoppingBag },
+    { href: '/offers',           label: t('myOffers') || 'My Offers', icon: FileText },
+    { href: '/transactions',     label: t('myOrders') || 'My Orders', icon: TrendingUp },
+    { href: '/grievances',       label: t('grievances') || 'Support & Help', icon: AlertCircle },
+  ];
+
+  const fpoNav = [
+    { href: '/fpo/dashboard',    label: t('dashboard') || 'Dashboard', icon: LayoutDashboard },
+    { href: '/sell',             label: t('aggregateLot') || 'Aggregate Lot', icon: ShoppingBag },
+    { href: '/matches',          label: t('findBuyers') || 'Find Buyers', icon: ArrowLeftRight },
+    { href: '/offers',           label: t('offers') || 'Offers', icon: FileText },
+    { href: '/transactions',     label: t('transactions') || 'Transactions', icon: TrendingUp },
+    { href: '/grievances',       label: t('grievances') || 'Support & Help', icon: AlertCircle },
+  ];
 
   const navItems = user?.role === 'buyer' ? buyerNav
     : user?.role === 'fpo' ? fpoNav
@@ -164,6 +166,7 @@ export default function DashboardLayout() {
           location={location}
           setSidebarOpen={setSidebarOpen}
           handleLogout={handleLogout}
+          t={t}
         />
       </div>
 
@@ -185,6 +188,7 @@ export default function DashboardLayout() {
           location={location}
           setSidebarOpen={setSidebarOpen}
           handleLogout={handleLogout}
+          t={t}
           mobile
         />
       </div>
@@ -207,7 +211,7 @@ export default function DashboardLayout() {
               <div className="h-5 w-0.5 bg-green-200 rounded-full" />
               <div>
                 <p className="text-sm font-semibold text-gray-800">
-                  Welcome back, <span className="text-green-700">{(user?.name || user?.full_name || 'Farmer').split(' ')[0]}</span>
+                  {t('welcomeBack') || 'Welcome back'}, <span className="text-green-700">{(user?.name || user?.full_name || 'Farmer').split(' ')[0]}</span>
                 </p>
                 <p className="text-xs text-gray-400">
                   {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -215,20 +219,36 @@ export default function DashboardLayout() {
               </div>
             </div>
 
-            {/* Right: Notifications */}
-            <div className="relative ml-auto">
-              <button
-                onClick={() => setNotifOpen(!notifOpen)}
-                className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
-                aria-label="View notifications"
+            {/* Right: Language Selector + Notifications */}
+            <div className="flex items-center gap-3 ml-auto">
+              <select
+                value={language}
+                onChange={(e) => changeLanguage(e.target.value)}
+                className="text-xs sm:text-sm border border-gray-200 rounded-xl px-2.5 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer bg-white shadow-2xs font-medium"
+                aria-label="Change language"
               >
-                <Bell className="w-5 h-5 text-gray-600" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
+                <option value="en">English</option>
+                <option value="mr">मराठी</option>
+                <option value="hi">हिंदी</option>
+                <option value="bn">বাংলা</option>
+                <option value="ta">தமிழ்</option>
+                <option value="te">తెలుగు</option>
+                <option value="kn">ಕನ್ನಡ</option>
+              </select>
+
+              <div className="relative">
+                <button
+                  onClick={() => setNotifOpen(!notifOpen)}
+                  className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                  aria-label="View notifications"
+                >
+                  <Bell className="w-5 h-5 text-gray-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
 
               {/* Notification dropdown */}
               {notifOpen && (
@@ -276,10 +296,8 @@ export default function DashboardLayout() {
               )}
             </div>
           </div>
-        </header>
-
-        {/* Demo Banner */}
-        <DemoModeBanner />
+        </div>
+      </header>
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6 xl:p-8">

@@ -1,13 +1,9 @@
-// =============================================================
-// Sell Produce Page
-// Farmers create produce listings (lots) here
-// =============================================================
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, CheckCircle2, ArrowRight } from 'lucide-react';
 import { createLot } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 
 const CROPS = ['Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat', 'Rice', 'Potato', 'Chilli'];
 const GRADES = [
@@ -19,6 +15,7 @@ const UNITS = ['Quintal', 'Kg', 'Tonne'];
 
 export default function SellPage() {
   const { user } = useAuth();
+  const { t, cropT } = useLanguage();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -71,30 +68,30 @@ export default function SellPage() {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
             <CheckCircle2 className="w-9 h-9 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Lot Created!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('lotCreated') || 'Lot Created!'}</h2>
           <p className="text-gray-500 mb-6">
-            Your listing for <strong>{createdLot.quantity} {createdLot.unit} of {createdLot.crop}</strong> has been created successfully.
+            Your listing for <strong>{createdLot.quantity} {createdLot.unit} of {cropT(createdLot.crop)}</strong> has been created successfully.
           </p>
 
           <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Crop</span>
-              <span className="font-semibold">{createdLot.crop}</span>
+              <span className="text-gray-500">{t('crop') || 'Crop'}</span>
+              <span className="font-semibold">{cropT(createdLot.crop)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Quantity</span>
+              <span className="text-gray-500">{t('quantity') || 'Quantity'}</span>
               <span className="font-semibold">{createdLot.quantity} {createdLot.unit}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Grade</span>
+              <span className="text-gray-500">{t('grade') || 'Grade'}</span>
               <span className="font-semibold">Grade {createdLot.grade}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Expected Price</span>
+              <span className="text-gray-500">{t('price') || 'Expected Price'}</span>
               <span className="font-semibold text-green-800">₹{parseInt(createdLot.expected_price).toLocaleString('en-IN')}/qtl</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Location</span>
+              <span className="text-gray-500">{t('location') || 'Location'}</span>
               <span className="font-semibold">{createdLot.location}</span>
             </div>
           </div>
@@ -104,14 +101,14 @@ export default function SellPage() {
               onClick={() => navigate('/matches', { state: { lot: createdLot } })}
               className="btn-primary flex items-center gap-2 justify-center"
             >
-              Find Matching Buyers
+              {t('findBuyers') || 'Find Matching Buyers'}
               <ArrowRight className="w-5 h-5" />
             </button>
             <button
               onClick={() => { setSuccess(false); setFormData({ crop: '', quantity: '', unit: 'Quintal', grade: '', location: user?.location || '', expected_price: '', available_date: '', notes: '' }); }}
               className="btn-secondary"
             >
-              Create Another Listing
+              {t('createListing') || 'Create Another Listing'}
             </button>
           </div>
         </div>
@@ -127,7 +124,7 @@ export default function SellPage() {
           <Package className="w-5 h-5 text-green-700" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sell Your Produce</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('sellProduce') || 'Sell Your Produce'}</h1>
           <p className="text-gray-500 text-sm">Create a listing and we'll find matching buyers for you</p>
         </div>
       </div>
@@ -136,22 +133,22 @@ export default function SellPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Crop */}
           <div>
-            <label className="label">Crop *</label>
+            <label className="label">{t('crop') || 'Crop'} *</label>
             <select
               className="input"
               value={formData.crop}
               onChange={(e) => handleChange('crop', e.target.value)}
               required
             >
-              <option value="">Select your crop</option>
-              {CROPS.map(c => <option key={c}>{c}</option>)}
+              <option value="">{t('selectCropPlaceholder') || 'Select your crop'}</option>
+              {CROPS.map(c => <option key={c} value={c}>{cropT(c)}</option>)}
             </select>
           </div>
 
           {/* Quantity + Unit */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Quantity *</label>
+              <label className="label">{t('quantity') || 'Quantity'} *</label>
               <input
                 type="number"
                 className="input"
@@ -163,7 +160,7 @@ export default function SellPage() {
               />
             </div>
             <div>
-              <label className="label">Unit *</label>
+              <label className="label">{t('unit') || 'Unit'} *</label>
               <select
                 className="input"
                 value={formData.unit}
@@ -176,7 +173,7 @@ export default function SellPage() {
 
           {/* Grade */}
           <div>
-            <label className="label">Quality / Grade *</label>
+            <label className="label">{t('grade') || 'Quality / Grade'} *</label>
             <div className="space-y-2">
               {GRADES.map(g => (
                 <label
@@ -206,7 +203,7 @@ export default function SellPage() {
 
           {/* Location */}
           <div>
-            <label className="label">Location (Village / Town) *</label>
+            <label className="label">{t('location') || 'Location (Village / Town)'} *</label>
             <input
               type="text"
               className="input"
@@ -220,7 +217,7 @@ export default function SellPage() {
           {/* Expected Price + Available Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Your Expected Price (₹/quintal)</label>
+              <label className="label">{t('expectedPrice') || 'Your Expected Price (₹/quintal)'}</label>
               <input
                 type="number"
                 className="input"
@@ -232,7 +229,7 @@ export default function SellPage() {
               <p className="text-xs text-gray-400 mt-1">Buyers can make offers above or below this</p>
             </div>
             <div>
-              <label className="label">Available From</label>
+              <label className="label">{t('availableDate') || 'Available From'}</label>
               <input
                 type="date"
                 className="input"
@@ -245,7 +242,7 @@ export default function SellPage() {
 
           {/* Notes */}
           <div>
-            <label className="label">Additional Notes</label>
+            <label className="label">{t('notes') || 'Additional Notes'}</label>
             <textarea
               className="input resize-none"
               rows={3}
@@ -266,10 +263,10 @@ export default function SellPage() {
             disabled={loading}
             className="btn-primary w-full disabled:opacity-60 flex items-center gap-2 justify-center text-base"
           >
-            {loading ? 'Creating listing...' : (
+            {loading ? (t('submittingListing') || 'Creating listing...') : (
               <>
                 <Package className="w-5 h-5" />
-                Find Buyers for My Produce
+                {t('findBuyers') || 'Find Buyers for My Produce'}
               </>
             )}
           </button>
@@ -282,3 +279,4 @@ export default function SellPage() {
     </div>
   );
 }
+
