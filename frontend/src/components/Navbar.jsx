@@ -29,7 +29,6 @@ export default function Navbar() {
 
   const navLinks = [
     { label: t('home'), href: '/' },
-    { label: t('howItWorks'), href: '/#how-it-works' },
     { label: t('marketPrices'), href: '/prices' },
     { label: t('map'), href: '/map' },
   ];
