@@ -2529,9 +2529,26 @@ export const CROP_TRANSLATIONS = {
 
 export const getCropTranslation = (cropName, lang = 'en') => {
   if (!cropName) return '';
-  const clean = cropName.trim();
+  const clean = String(cropName).trim();
+  const s = clean.toLowerCase();
+
+  // Match canonical commodities from varieties or aliases
+  let canonical = null;
+  if (s.includes('onion') || s.includes('pyaz')) canonical = 'Onion';
+  else if (s.includes('tomato') || s.includes('tamatar')) canonical = 'Tomato';
+  else if (s.includes('potato') || s.includes('aloo')) canonical = 'Potato';
+  else if (s.includes('soya') || s.includes('soybean')) canonical = 'Soybean';
+  else if (s.includes('cotton') || s.includes('kapas')) canonical = 'Cotton';
+  else if (s.includes('wheat') || s.includes('gehun') || s.includes('gehu')) canonical = 'Wheat';
+  else if (s.includes('chilli') || s.includes('chili') || s.includes('mirch')) canonical = 'Chilli';
+  else if (s.includes('rice') || s.includes('paddy') || s.includes('chawal')) canonical = 'Rice';
+
+  if (canonical && CROP_TRANSLATIONS[canonical] && CROP_TRANSLATIONS[canonical][lang]) {
+    return CROP_TRANSLATIONS[canonical][lang];
+  }
+
   const cap = clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
   const match = CROP_TRANSLATIONS[cap] || CROP_TRANSLATIONS[clean];
   if (match && match[lang]) return match[lang];
-  return cropName;
+  return clean;
 };

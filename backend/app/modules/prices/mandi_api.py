@@ -156,6 +156,7 @@ def normalize_record(raw: dict[str, Any]) -> dict[str, Any]:
         "district": district,
         "market": market,
         "commodity": commodity,
+        "crop": canonical_crop(commodity),
         "variety": variety,
         "grade": grade,
         "arrival_date": arrival_date,

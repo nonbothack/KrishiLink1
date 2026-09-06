@@ -55,7 +55,7 @@ function BestPriceHeroCard({ trendData, prices, selectedCrop, t, cropT }) {
 
   // 1. Primary: Match from real live/database prices list
   let best = priceList
-    .filter(p => p && p.crop && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0)
+    .filter(p => p && (p.crop || p.commodity) && normalizeCrop(p.crop || p.commodity) === targetCrop && Number(p.modal_price) > 0)
     .sort((a, b) => (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0))[0];
 
   // 2. Secondary: Match from trendData (computed from real database arithmetic)
@@ -524,16 +524,18 @@ export default function FarmerDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {(Array.isArray(prices) && prices.length > 0 ? prices : LIVE_GOVERNMENT_PRICES).slice(0, 8).map(p => (
-                    <tr key={p.id || `${p.crop}-${p.market}`} className="hover:bg-green-50/30 transition-colors">
-                      <td className="py-3 font-semibold text-gray-800 flex items-center gap-2.5">
-                        <img
-                          src={getCropImage(p.crop)}
-                          alt={p.crop || 'Crop'}
-                          className="w-7 h-7 rounded-md object-cover flex-shrink-0 border border-gray-100 shadow-2xs"
-                        />
-                        <span>{cropT(p.crop) || 'Crop'}</span>
-                      </td>
+                  {(Array.isArray(prices) && prices.length > 0 ? prices : LIVE_GOVERNMENT_PRICES).slice(0, 8).map(p => {
+                    const cropName = p.crop || p.commodity || 'Produce';
+                    return (
+                      <tr key={p.id || `${cropName}-${p.market}`} className="hover:bg-green-50/30 transition-colors">
+                        <td className="py-3 font-semibold text-gray-800 flex items-center gap-2.5">
+                          <img
+                            src={getCropImage(cropName)}
+                            alt={cropName}
+                            className="w-7 h-7 rounded-md object-cover flex-shrink-0 border border-gray-100 shadow-2xs"
+                          />
+                          <span>{cropT(cropName)}</span>
+                        </td>
                       <td className="py-3 text-gray-600">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-gray-400" />
@@ -555,8 +557,9 @@ export default function FarmerDashboard() {
                       <td className="py-3 text-center">
                         <TrendBadge trend={p.trend} />
                       </td>
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

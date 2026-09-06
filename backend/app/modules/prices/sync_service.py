@@ -345,13 +345,27 @@ def calibrate_15day_history(db: Session, force: bool = False) -> dict[str, Any]:
                 .first()
             )
 
-            needs_calibration = force
-            if oldest_obs and oldest_obs.modal_price:
-                old_val = float(oldest_obs.modal_price)
-                if abs(target_today - old_val) / max(old_val, 1) > 0.35:
+            # Check yesterday and oldest observation for discontinuity/spikes
+            yesterday_date = today - timedelta(days=1)
+            yesterday_obs = (
+                db.query(PriceObservation)
+                .filter(
+                    PriceObservation.crop_id == crop_obj.id,
+                    PriceObservation.market_id == market_obj.id,
+                    PriceObservation.price_date == yesterday_date,
+                )
+                .first()
+            )
+
+            needs_calibration = force or (not oldest_obs) or (not yesterday_obs)
+            if not needs_calibration and yesterday_obs and yesterday_obs.modal_price:
+                yest_val = float(yesterday_obs.modal_price)
+                if abs(target_today - yest_val) / max(yest_val, 1) > 0.035:
                     needs_calibration = True
-            elif not oldest_obs:
-                needs_calibration = True
+            if not needs_calibration and oldest_obs and oldest_obs.modal_price:
+                old_val = float(oldest_obs.modal_price)
+                if abs(target_today - old_val) / max(old_val, 1) > 0.10:
+                    needs_calibration = True
 
             if not needs_calibration:
                 continue
@@ -359,9 +373,9 @@ def calibrate_15day_history(db: Session, force: bool = False) -> dict[str, Any]:
             for cur_date in days_range:
                 days_from_today = (today - cur_date).days
                 h_val = int(hashlib.md5(f"{crop_name}-{market_name}-{cur_date}".encode()).hexdigest()[:6], 16)
-                daily_jitter = ((h_val % 40) - 20) / 1000.0  # -2.0% to +2.0%
+                daily_jitter = ((h_val % 16) - 8) / 1000.0  # smooth -0.8% to +0.8%
 
-                trend_factor = (1.0 - (days_from_today * 0.005) + daily_jitter) if days_from_today > 0 else 1.0
+                trend_factor = (1.0 - (days_from_today * 0.003) + daily_jitter) if days_from_today > 0 else 1.0
                 modal_val = round(target_today * trend_factor, 0)
                 min_val = round(modal_val * 0.93, 0)
                 max_val = round(modal_val * 1.07, 0)

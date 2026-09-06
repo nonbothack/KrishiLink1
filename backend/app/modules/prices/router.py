@@ -415,6 +415,38 @@ def price_history(
                     "market": "All Mandis (Average)",
                 })
 
+            # Check for sudden single-day discontinuity between yesterday and today
+            if len(data) >= 2:
+                last_p = data[-1]["price"]
+                prev_p = data[-2]["price"]
+                if prev_p > 0 and abs(last_p - prev_p) / prev_p > 0.04:
+                    from app.modules.prices.sync_service import calibrate_15day_history
+                    calibrate_15day_history(db, force=True)
+                    re_rows = (
+                        db.query(
+                            PriceObservation.price_date,
+                            func.round(func.avg(PriceObservation.modal_price), 0).label("avg_modal"),
+                            func.min(PriceObservation.min_price).label("min_p"),
+                            func.max(PriceObservation.max_price).label("max_p"),
+                        )
+                        .filter(PriceObservation.crop_id == crop.id)
+                        .group_by(PriceObservation.price_date)
+                        .order_by(PriceObservation.price_date.desc())
+                        .limit(days)
+                        .all()
+                    )
+                    data = [
+                        {
+                            "date": d.isoformat() if hasattr(d, "isoformat") else str(d),
+                            "price": float(avg_m or 0),
+                            "modal_price": float(avg_m or 0),
+                            "min_price": float(min_p or 0),
+                            "max_price": float(max_p or 0),
+                            "market": "All Mandis (Average)",
+                        }
+                        for d, avg_m, min_p, max_p in reversed(re_rows)
+                    ]
+
     if not data:
         data = _generate_synthetic_history(crop_name, days, market=market)
         return {

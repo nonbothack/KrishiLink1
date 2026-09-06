@@ -46,15 +46,15 @@ export const DEMO_PRICES = [
 // PRICE HISTORY (15 days, for chart across all 8 crops & markets)
 // =============================================================
 const BENCHMARKS = {
-  Onion: 6250,
-  Tomato: 2470,
-  Soybean: 9020,
-  Soyabean: 9020,
-  Cotton: 7650,
-  Wheat: 2530,
-  Potato: 3310,
-  Chilli: 4640,
-  Rice: 2690,
+  Onion: 6050,
+  Tomato: 2450,
+  Soybean: 8050,
+  Soyabean: 8050,
+  Cotton: 7850,
+  Wheat: 2540,
+  Potato: 3250,
+  Chilli: 4720,
+  Rice: 2700,
 };
 
 const MARKET_FACTORS = {
@@ -81,9 +81,9 @@ TARGET_CROPS_LIST.forEach(crop => {
     const targetPrice = Math.round(baseRate * factor);
     DEMO_PRICE_HISTORY[crop][market] = Array.from({ length: 15 }, (_, i) => {
       const daysFromToday = 14 - i;
-      const charSeed = ((crop.charCodeAt(0) * 31 + market.charCodeAt(0) * 17 + i * 13) % 40) - 20;
+      const charSeed = ((crop.charCodeAt(0) * 31 + market.charCodeAt(0) * 17 + i * 13) % 16) - 8;
       const jitter = charSeed / 1000.0;
-      const trend = daysFromToday > 0 ? (1.0 - (daysFromToday * 0.004) + jitter) : 1.0;
+      const trend = daysFromToday > 0 ? (1.0 - (daysFromToday * 0.003) + jitter) : 1.0;
       const modal = Math.round(targetPrice * trend);
       return {
         date: daysAgo(daysFromToday),
