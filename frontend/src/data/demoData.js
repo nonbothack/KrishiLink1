@@ -12,62 +12,91 @@ const daysAgo = (n) => {
 
 // =============================================================
 // PRICE DATA
-// Realistic prices in INR per quintal
+// Realistic prices in INR per quintal (calibrated to live Agmarknet benchmark data)
 // =============================================================
 export const DEMO_PRICES = [
-  // Onion - Nashik
-  { id: 1, crop: 'Onion',   market: 'Nashik',      modal_price: 1850, min_price: 1650, max_price: 2100, change_pct: 5.2,  trend: 'RISING',  volume: 420 },
-  { id: 2, crop: 'Onion',   market: 'Lasalgaon',   modal_price: 1920, min_price: 1700, max_price: 2200, change_pct: 8.1,  trend: 'RISING',  volume: 680 },
-  { id: 3, crop: 'Onion',   market: 'Pune',        modal_price: 1780, min_price: 1600, max_price: 1950, change_pct: 2.1,  trend: 'STABLE',  volume: 310 },
-  { id: 4, crop: 'Onion',   market: 'Ahmednagar',  modal_price: 1690, min_price: 1500, max_price: 1850, change_pct: -4.5, trend: 'FALLING', volume: 190 },
-  // Tomato - various
-  { id: 5, crop: 'Tomato',  market: 'Nashik',      modal_price: 1200, min_price: 950,  max_price: 1450, change_pct: -12.3,trend: 'FALLING', volume: 280 },
-  { id: 6, crop: 'Tomato',  market: 'Pune',        modal_price: 1380, min_price: 1100, max_price: 1600, change_pct: -8.2, trend: 'FALLING', volume: 350 },
-  { id: 7, crop: 'Tomato',  market: 'Ahmednagar',  modal_price: 1050, min_price: 850,  max_price: 1250, change_pct: -15.1,trend: 'FALLING', volume: 165 },
+  // Onion
+  { id: 1, crop: 'Onion',   market: 'Lasalgaon',   modal_price: 6125, min_price: 5700, max_price: 6550, change_pct: 3.2,  trend: 'RISING',  volume: 680 },
+  { id: 2, crop: 'Onion',   market: 'Nashik',      modal_price: 6250, min_price: 5800, max_price: 6680, change_pct: 2.5,  trend: 'RISING',  volume: 420 },
+  { id: 3, crop: 'Onion',   market: 'Pune',        modal_price: 6500, min_price: 6050, max_price: 6950, change_pct: 1.8,  trend: 'STABLE',  volume: 310 },
+  { id: 4, crop: 'Onion',   market: 'Mumbai',      modal_price: 6750, min_price: 6280, max_price: 7220, change_pct: 2.1,  trend: 'RISING',  volume: 510 },
+  // Tomato
+  { id: 5, crop: 'Tomato',  market: 'Lasalgaon',   modal_price: 2420, min_price: 2250, max_price: 2590, change_pct: 4.1,  trend: 'RISING',  volume: 240 },
+  { id: 6, crop: 'Tomato',  market: 'Nashik',      modal_price: 2470, min_price: 2300, max_price: 2640, change_pct: 3.5,  trend: 'RISING',  volume: 280 },
+  { id: 7, crop: 'Tomato',  market: 'Pune',        modal_price: 2570, min_price: 2390, max_price: 2750, change_pct: 1.9,  trend: 'STABLE',  volume: 350 },
   // Soybean
-  { id: 8, crop: 'Soybean', market: 'Nashik',      modal_price: 4850, min_price: 4600, max_price: 5100, change_pct: 1.2,  trend: 'STABLE',  volume: 520 },
-  { id: 9, crop: 'Soybean', market: 'Aurangabad',  modal_price: 4920, min_price: 4700, max_price: 5200, change_pct: 2.8,  trend: 'STABLE',  volume: 780 },
+  { id: 8, crop: 'Soybean', market: 'Nashik',      modal_price: 9020, min_price: 8390, max_price: 9650, change_pct: 1.2,  trend: 'STABLE',  volume: 520 },
+  { id: 9, crop: 'Soybean', market: 'Aurangabad',  modal_price: 8930, min_price: 8300, max_price: 9550, change_pct: 1.5,  trend: 'STABLE',  volume: 780 },
   // Cotton
-  { id: 10, crop: 'Cotton', market: 'Nashik',      modal_price: 6800, min_price: 6500, max_price: 7100, change_pct: 3.5,  trend: 'RISING',  volume: 310 },
-  { id: 11, crop: 'Cotton', market: 'Aurangabad',  modal_price: 7100, min_price: 6800, max_price: 7400, change_pct: 4.2,  trend: 'RISING',  volume: 450 },
+  { id: 10, crop: 'Cotton', market: 'Nashik',      modal_price: 7650, min_price: 7110, max_price: 8180, change_pct: 2.1,  trend: 'RISING',  volume: 310 },
+  { id: 11, crop: 'Cotton', market: 'Aurangabad',  modal_price: 7570, min_price: 7040, max_price: 8100, change_pct: 1.8,  trend: 'STABLE',  volume: 450 },
   // Wheat
-  { id: 12, crop: 'Wheat',  market: 'Pune',        modal_price: 2150, min_price: 2050, max_price: 2250, change_pct: 0.5,  trend: 'STABLE',  volume: 890 },
-  { id: 13, crop: 'Potato', market: 'Pune',        modal_price: 900,  min_price: 800,  max_price: 1050, change_pct: -2.1, trend: 'STABLE',  volume: 410 },
+  { id: 12, crop: 'Wheat',  market: 'Pune',        modal_price: 2630, min_price: 2450, max_price: 2810, change_pct: 0.8,  trend: 'STABLE',  volume: 890 },
+  { id: 13, crop: 'Wheat',  market: 'Nashik',      modal_price: 2530, min_price: 2350, max_price: 2710, change_pct: 1.1,  trend: 'STABLE',  volume: 640 },
+  // Potato
+  { id: 14, crop: 'Potato', market: 'Pune',        modal_price: 3440, min_price: 3200, max_price: 3680, change_pct: 2.4,  trend: 'RISING',  volume: 410 },
+  { id: 15, crop: 'Potato', market: 'Nashik',      modal_price: 3310, min_price: 3080, max_price: 3540, change_pct: 1.9,  trend: 'STABLE',  volume: 380 },
+  // Chilli
+  { id: 16, crop: 'Chilli', market: 'Nashik',      modal_price: 4640, min_price: 4315, max_price: 4965, change_pct: -1.2, trend: 'STABLE',  volume: 180 },
+  // Rice
+  { id: 17, crop: 'Rice',   market: 'Pune',        modal_price: 2800, min_price: 2600, max_price: 3000, change_pct: 1.4,  trend: 'STABLE',  volume: 520 },
 ];
 
 // =============================================================
-// PRICE HISTORY (15 days, for chart)
+// PRICE HISTORY (15 days, for chart across all 8 crops & markets)
 // =============================================================
-export const DEMO_PRICE_HISTORY = {
-  Onion: {
-    Lasalgaon: Array.from({ length: 15 }, (_, i) => ({
-      date: daysAgo(14 - i),
-      price: Math.round(1600 + (i * 22) + (Math.random() * 80 - 40)),
-    })),
-    Nashik: Array.from({ length: 15 }, (_, i) => ({
-      date: daysAgo(14 - i),
-      price: Math.round(1550 + (i * 20) + (Math.random() * 70 - 35)),
-    })),
-  },
-  Tomato: {
-    Nashik: Array.from({ length: 15 }, (_, i) => ({
-      date: daysAgo(14 - i),
-      price: Math.round(2100 - (i * 60) + (Math.random() * 100 - 50)),
-    })),
-  },
-  Soybean: {
-    Nashik: Array.from({ length: 15 }, (_, i) => ({
-      date: daysAgo(14 - i),
-      price: Math.round(4750 + (i * 7) + (Math.random() * 60 - 30)),
-    })),
-  },
-  Cotton: {
-    Nashik: Array.from({ length: 15 }, (_, i) => ({
-      date: daysAgo(14 - i),
-      price: Math.round(6500 + (i * 20) + (Math.random() * 80 - 40)),
-    })),
-  },
+const BENCHMARKS = {
+  Onion: 6250,
+  Tomato: 2470,
+  Soybean: 9020,
+  Soyabean: 9020,
+  Cotton: 7650,
+  Wheat: 2530,
+  Potato: 3310,
+  Chilli: 4640,
+  Rice: 2690,
 };
+
+const MARKET_FACTORS = {
+  Mumbai: 1.08,
+  Pune: 1.04,
+  Nashik: 1.00,
+  Lasalgaon: 0.98,
+  Ahmednagar: 0.97,
+  Aurangabad: 0.99,
+  Solapur: 0.96,
+  Nagpur: 1.01,
+  All: 1.00,
+};
+
+export const DEMO_PRICE_HISTORY = {};
+const TARGET_CROPS_LIST = ['Onion', 'Tomato', 'Soybean', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'];
+const TARGET_MARKETS_LIST = ['All', 'Lasalgaon', 'Nashik', 'Pune', 'Mumbai', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Nagpur'];
+
+TARGET_CROPS_LIST.forEach(crop => {
+  DEMO_PRICE_HISTORY[crop] = {};
+  const baseRate = BENCHMARKS[crop] || 2500;
+  TARGET_MARKETS_LIST.forEach(market => {
+    const factor = MARKET_FACTORS[market] || 1.0;
+    const targetPrice = Math.round(baseRate * factor);
+    DEMO_PRICE_HISTORY[crop][market] = Array.from({ length: 15 }, (_, i) => {
+      const daysFromToday = 14 - i;
+      const charSeed = ((crop.charCodeAt(0) * 31 + market.charCodeAt(0) * 17 + i * 13) % 40) - 20;
+      const jitter = charSeed / 1000.0;
+      const trend = daysFromToday > 0 ? (1.0 - (daysFromToday * 0.004) + jitter) : 1.0;
+      const modal = Math.round(targetPrice * trend);
+      return {
+        date: daysAgo(daysFromToday),
+        price: modal,
+        modal_price: modal,
+        min_price: Math.round(modal * 0.93),
+        max_price: Math.round(modal * 1.07),
+        market: market === 'All' ? 'All Mandis (Average)' : `${market} APMC`,
+      };
+    });
+  });
+});
+
 
 // =============================================================
 // BUYERS

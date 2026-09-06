@@ -1,3 +1,6 @@
+import logging
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -7,6 +10,18 @@ from app.models import Crop, Market, PriceObservation
 from app.modules.prices.mandi_api import fetch_mandi_prices
 
 router = APIRouter(prefix="/prices", tags=["prices"])
+logger = logging.getLogger(__name__)
+
+
+def _ensure_prices_synced(db: Session):
+    try:
+        max_d = db.query(func.max(PriceObservation.price_date)).scalar()
+        if not max_d or max_d < date.today():
+            from app.modules.prices.sync_service import sync_daily_prices
+
+            sync_daily_prices(db)
+    except Exception as e:
+        logger.warning("Auto-sync prices error (non-fatal): %s", e)
 
 
 @router.get("", response_model=dict)
@@ -20,6 +35,7 @@ def list_prices(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ):
+    _ensure_prices_synced(db)
     q = (
         db.query(
             PriceObservation,
@@ -200,10 +216,19 @@ def _generate_synthetic_history(crop_name: str, days: int, market: str | None = 
             base = float(live_data[0]["modal_price"])
         else:
             base_prices = {
-                "Onion": 2500, "Tomato": 1800, "Soyabean": 4200, "Cotton": 6500,
-                "Wheat": 2200, "Potato": 1500, "Chilli": 8000, "Rice": 3500
+                "Onion": 6250,
+                "Tomato": 2470,
+                "Soyabean": 9020,
+                "Cotton": 7650,
+                "Wheat": 2530,
+                "Potato": 3310,
+                "Chilli": 4640,
+                "Rice": 2690,
             }
-            base = base_prices.get(c_name, 2000)
+            base = base_prices.get(c_name, 2500)
+            if market and market in ("Mumbai", "Pune", "Nashik", "Lasalgaon", "Ahmednagar", "Solapur", "Aurangabad", "Nagpur"):
+                from app.modules.prices.sync_service import MARKET_FACTORS
+                base = round(base * MARKET_FACTORS.get(market, 1.0), 0)
     except Exception:
         pass
 
@@ -245,6 +270,7 @@ def get_price_trend(
     db: Session = Depends(get_db),
     market: str | None = None,
 ):
+    _ensure_prices_synced(db)
     crop = db.query(Crop).filter(Crop.name.ilike(crop_name)).first()
     if not crop:
         crop = db.query(Crop).filter(Crop.name.ilike(f"%{crop_name}%")).first()
@@ -337,6 +363,7 @@ def price_history(
     market: str | None = None,
     days: int = Query(15, ge=1, le=90),
 ):
+    _ensure_prices_synced(db)
     crop = db.query(Crop).filter(Crop.name.ilike(crop_name)).first()
     if not crop:
         crop = db.query(Crop).filter(Crop.name.ilike(f"%{crop_name}%")).first()
@@ -427,3 +454,21 @@ def provenance(obs_id: str, request: Request, db: Session = Depends(get_db)):
         "message": "Provenance",
         "request_id": getattr(request.state, "request_id", None),
     }
+
+
+@router.post("/sync", response_model=dict)
+def sync_prices(
+    request: Request,
+    db: Session = Depends(get_db),
+    force: bool = Query(False),
+):
+    from app.modules.prices.sync_service import sync_daily_prices
+
+    res = sync_daily_prices(db, force=force)
+    return {
+        "success": True,
+        "data": res,
+        "message": "Daily price synchronization completed",
+        "request_id": getattr(request.state, "request_id", None),
+    }
+

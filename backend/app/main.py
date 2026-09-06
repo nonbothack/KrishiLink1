@@ -47,10 +47,18 @@ async def lifespan(app: FastAPI):
 
                 run_seed()
                 logger.info("Auto-seed completed successfully.")
+
+            # Ensure price observations extend continuously up to today
+            try:
+                from app.modules.prices.sync_service import sync_daily_prices
+
+                sync_daily_prices(db)
+            except Exception as se:
+                logger.warning(f"Initial daily price sync error (non-fatal): {se}")
         finally:
             db.close()
     except Exception as e:
-        logger.warning(f"Auto-seed check encountered error (non-fatal): {e}")
+        logger.warning(f"Lifespan setup encountered error (non-fatal): {e}")
     yield
 
 
