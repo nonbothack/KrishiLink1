@@ -51,3 +51,5 @@ yarn-debug.log*
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+KrishiLink1-feature-product-evolution.zip
+feature_branch_unzipped/
