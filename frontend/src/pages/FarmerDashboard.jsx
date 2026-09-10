@@ -31,6 +31,7 @@ import { DEMO_PRICES, DEMO_PRICE_HISTORY, DEMO_BUYERS, DEMO_STORAGE } from '../d
 import { TrendBadge, VerifiedBadge } from '../components/Badges';
 import { LoadingState } from '../components/States';
 import { NextActionCard } from '../components/ui/NextActionCard';
+import MarketMap from '../components/map/MarketMap';
 
 // ---- Trend Info Box ----
 function TrendInfoBox({ trendData }) {
@@ -751,6 +752,11 @@ export default function FarmerDashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Embedded Full Market Map */}
+      <div className="mt-8">
+        <MarketMap className="h-[700px] border border-gray-100 rounded-2xl shadow-sm overflow-hidden" hideTitle={true} />
       </div>
     </div>
   );

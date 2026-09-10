@@ -10,6 +10,7 @@ import { LoadingState } from '../components/States';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { ToastContainer } from '../components/ui/Toast';
+import MarketMap from '../components/map/MarketMap';
 
 function SummaryCard({ title, value, sub, icon: Icon, color }) {
   return (
@@ -193,6 +194,11 @@ export default function BuyerDashboard() {
           )}
         </>
       )}
+
+      {/* Embedded Full Market Map */}
+      <div className="mt-8">
+        <MarketMap className="h-[700px] border border-gray-100 rounded-2xl shadow-sm overflow-hidden" hideTitle={true} />
+      </div>
 
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
