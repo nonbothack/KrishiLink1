@@ -9,6 +9,7 @@ import { StatusBadge } from '../components/Badges';
 import { LoadingState } from '../components/States';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
+import { ToastContainer } from '../components/ui/Toast';
 
 function SummaryCard({ title, value, sub, icon: Icon, color }) {
   return (
@@ -33,6 +34,13 @@ export default function BuyerDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [cropFilter, setCropFilter] = useState('All');
   const [offeringSent, setOfferingSent] = useState({});
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'error') => {
+    const id = Date.now().toString();
+    setToasts(p => [...p, { id, message, type, title: type === 'error' ? 'Error' : 'Notification' }]);
+  };
+  const removeToast = (id) => setToasts(p => p.filter(t => t.id !== id));
 
   useEffect(() => {
     async function load() {
@@ -69,7 +77,7 @@ export default function BuyerDashboard() {
     if (res && res.success) {
       setOfferingSent(p => ({ ...p, [lot.id]: 'sent' }));
     } else {
-      alert(res?.error || 'Could not send offer. Please try again.');
+      addToast(res?.error || 'Could not send offer. Please try again.', 'error');
       setOfferingSent(p => ({ ...p, [lot.id]: null }));
     }
   }
@@ -185,6 +193,8 @@ export default function BuyerDashboard() {
           )}
         </>
       )}
+
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }

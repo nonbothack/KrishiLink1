@@ -5,6 +5,7 @@ import { getOffers, acceptOffer, rejectOffer } from '../services/api';
 import { StatusBadge } from '../components/Badges';
 import { LoadingState, EmptyState } from '../components/States';
 import { useLanguage } from '../hooks/useLanguage';
+import { ToastContainer } from '../components/ui/Toast';
 
 export default function OffersPage() {
   const { t, cropT } = useLanguage();
@@ -13,6 +14,13 @@ export default function OffersPage() {
   const [filter, setFilter] = useState('all');
   const [updatingId, setUpdatingId] = useState(null);
   const [error, setError] = useState(null);
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'error') => {
+    const id = Date.now().toString();
+    setToasts(p => [...p, { id, message, type, title: type === 'error' ? 'Error' : 'Notification' }]);
+  };
+  const removeToast = (id) => setToasts(p => p.filter(t => t.id !== id));
 
   const loadOffers = useCallback(async () => {
     setLoading(true);
@@ -36,7 +44,7 @@ export default function OffersPage() {
     if (res && res.success) {
       setOffers(prev => prev.map(o => o.id === id ? { ...o, status: 'ACCEPTED' } : o));
     } else {
-      alert(res?.error || 'Failed to accept offer');
+      addToast(res?.error || 'Failed to accept offer', 'error');
     }
     setUpdatingId(null);
   }
@@ -47,7 +55,7 @@ export default function OffersPage() {
     if (res && res.success) {
       setOffers(prev => prev.map(o => o.id === id ? { ...o, status: 'REJECTED' } : o));
     } else {
-      alert(res?.error || 'Failed to decline offer');
+      addToast(res?.error || 'Failed to decline offer', 'error');
     }
     setUpdatingId(null);
   }
@@ -188,6 +196,8 @@ export default function OffersPage() {
           })}
         </div>
       )}
+
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }
