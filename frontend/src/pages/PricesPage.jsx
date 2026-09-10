@@ -5,7 +5,7 @@
 // =============================================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, Filter, MapPin, Calendar, RefreshCw } from 'lucide-react';
+import { Search, Filter, MapPin, Calendar, RefreshCw, BarChart3, TrendingUp } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -320,13 +320,7 @@ export default function PricesPage() {
           </p>
         </div>
 
-        <button
-          onClick={loadPrices}
-          className="btn-secondary btn-sm flex items-center gap-2 text-xs self-start sm:self-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {t('refreshPrices') || 'Refresh Prices'}
-        </button>
+
       </div>
 
       {/* Charts Section */}
@@ -335,8 +329,11 @@ export default function PricesPage() {
         <div className="card">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <p className="section-label">{t('datedSeries') || 'Dated Series'}</p>
-              <h2 className="text-base font-bold text-gray-900">{t('historicalPriceTrend') || 'Historical Price Trend'}</h2>
+              <p className="section-label flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5 text-green-700" />
+                {t('historicalData') || 'Historical Data'}
+              </p>
+              <h2 className="text-base font-bold text-gray-900">{t('priceTrend15Day') || '15-Day Price Trend'}</h2>
               <p className="text-xs text-gray-400 mt-0.5">
                 {selectedMarket === 'All' ? (t('fifteenDayAvgRate') || '15-day state average modal rate') : `${t('fifteenDaySeriesFor') || '15-day daily series for'} ${selectedMarket} APMC`}
               </p>
@@ -415,7 +412,10 @@ export default function PricesPage() {
         {/* Market comparison bar chart */}
         <div className="card">
           <div className="mb-4">
-            <p className="section-label">{t('crossMandiBenchmark') || 'Cross-Mandi Benchmark'}</p>
+            <p className="section-label flex items-center gap-1">
+              <BarChart3 className="w-3.5 h-3.5 text-green-700" />
+              {t('acrossMarkets') || 'Across Markets'}
+            </p>
             <h2 className="text-base font-bold text-gray-900 mb-1">{t('marketComparisonTitle') || 'Market Comparison'}</h2>
             <p className="text-xs text-gray-400 mb-2">{t('marketComparisonDesc') || 'Modal price across APMCs for'} {cropT(selectedCrop)} {t('rankedHighestLowest') || '(ranked highest to lowest)'}</p>
           </div>
@@ -530,6 +530,13 @@ export default function PricesPage() {
               <h2 className="font-bold text-gray-900">{t('mandiPriceDirectory') || 'Mandi Price Directory'}</h2>
               <p className="text-xs text-gray-400 mt-0.5">{t('showing') || 'Showing'} {filtered.length} {t('verifiedObservations') || 'verified observations'}</p>
             </div>
+            <button
+              onClick={loadPrices}
+              className="flex items-center gap-1.5 text-xs font-semibold text-green-700 hover:text-green-800"
+              title="Refresh prices from the live source"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> {t('refresh') || 'Refresh'}
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -541,6 +548,7 @@ export default function PricesPage() {
                   <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">{t('minPrice') || 'Min'}</th>
                   <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">{t('modalPrice') || 'Modal'}</th>
                   <th className="text-right px-5 py-3 text-sm font-semibold text-green-800">{t('maxPrice') || 'Max'}</th>
+                  <th className="text-right px-5 py-3 text-sm font-semibold text-green-800 hidden md:table-cell">{t('volume') || 'Volume (T)'}</th>
                   <th className="text-center px-5 py-3 text-sm font-semibold text-green-800">{t('trend') || 'Trend'}</th>
                 </tr>
               </thead>
@@ -560,6 +568,14 @@ export default function PricesPage() {
                           />
                           <span>{cropT(p.crop)}</span>
                           {isBest && <span className="ml-1 text-[10px] font-bold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">{t('best') || 'BEST'}</span>}
+                          {(p.quality_status === 'INTERPOLATED' || p.is_interpolated) && (
+                            <span
+                              className="ml-1 text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded"
+                              title="Interpolated estimate from surrounding observations — not direct mandi reporting"
+                            >
+                              ESTIMATE
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-gray-600">
@@ -576,6 +592,7 @@ export default function PricesPage() {
                         ₹{modal.toLocaleString('en-IN')}
                       </td>
                       <td className="px-5 py-3.5 text-right text-gray-500">₹{Number(p.max_price || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-5 py-3.5 text-right text-gray-500 hidden md:table-cell">{p.volume || '—'}</td>
                       <td className="px-5 py-3.5 text-center">
                         <TrendBadge trend={p.trend} change={p.change_pct} />
                       </td>
