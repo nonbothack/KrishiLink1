@@ -49,6 +49,19 @@ function ProtectedRoute({ children, requiredRole = null }) {
   return children;
 }
 
+function HybridRoute({ children }) {
+  const { isLoggedIn } = useAuth();
+  return isLoggedIn ? (
+    <DashboardLayout>
+      {children}
+    </DashboardLayout>
+  ) : (
+    <PublicLayout>
+      {children}
+    </PublicLayout>
+  );
+}
+
 function App() {
   return (
     // LanguageProvider and AuthProvider wrap everything
@@ -64,8 +77,10 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/prices" element={<PricesPage />} />
-                <Route path="/map" element={<MapPage />} />
               </Route>
+
+              {/* ---- HYBRID ROUTES ---- */}
+              <Route path="/map" element={<HybridRoute><MapPage /></HybridRoute>} />
 
               {/* ---- FARMER ROUTES ---- */}
               <Route element={

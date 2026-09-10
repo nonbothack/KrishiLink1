@@ -8,7 +8,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Sprout, LayoutDashboard, ShoppingBag, ArrowLeftRight,
   TrendingUp, FileText, AlertCircle, LogOut,
-  Menu, Bell, CheckCheck
+  Menu, Bell, CheckCheck, MapPin
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
@@ -84,7 +84,7 @@ function SidebarContent({ user, navItems, location, setSidebarOpen, handleLogout
   );
 }
 
-export default function DashboardLayout() {
+export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -95,6 +95,7 @@ export default function DashboardLayout() {
 
   const farmerNav = [
     { href: '/farmer/dashboard', label: t('dashboard') || 'Dashboard', icon: LayoutDashboard },
+    { href: '/map',              label: t('marketMap') || 'Market Map', icon: MapPin },
     { href: '/sell',             label: t('listProduce') || 'List Produce', icon: ShoppingBag },
     { href: '/matches',          label: t('findBuyers') || 'Find Buyers', icon: ArrowLeftRight },
     { href: '/offers',           label: t('offers') || 'Offers', icon: FileText },
@@ -104,6 +105,7 @@ export default function DashboardLayout() {
 
   const buyerNav = [
     { href: '/buyer/dashboard',  label: t('marketplace') || 'Marketplace', icon: ShoppingBag },
+    { href: '/map',              label: t('marketMap') || 'Market Map', icon: MapPin },
     { href: '/offers',           label: t('myOffers') || 'My Offers', icon: FileText },
     { href: '/transactions',     label: t('myOrders') || 'My Orders', icon: TrendingUp },
     { href: '/grievances',       label: t('grievances') || 'Support & Help', icon: AlertCircle },
@@ -301,7 +303,7 @@ export default function DashboardLayout() {
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6 xl:p-8">
-          <Outlet />
+          {children || <Outlet />}
         </main>
       </div>
     </div>
