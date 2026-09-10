@@ -3,7 +3,7 @@
 // Main page for logged-in farmers
 // =============================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package, FileText, Wallet,
@@ -30,144 +30,7 @@ import { LIVE_GOVERNMENT_PRICES } from '../data/liveMandiData';
 import { DEMO_PRICES, DEMO_PRICE_HISTORY, DEMO_BUYERS, DEMO_STORAGE } from '../data/demoData';
 import { TrendBadge, VerifiedBadge } from '../components/Badges';
 import { LoadingState } from '../components/States';
-
-// ---- Summary Card (secondary level) ----
-function SummaryCard({ title, value, sub, icon: Icon, color, accent }) {
-  return (
-    <div className={`card flex items-start gap-4 ${accent}`}>
-      <div className={`w-11 h-11 ${color} rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm`}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs text-gray-500 font-medium">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 mt-0.5 leading-tight">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
-// ---- Best Price Hero Card (primary level) ----
-function BestPriceHeroCard({ trendData, prices, selectedCrop, t, cropT }) {
-  const priceList = Array.isArray(prices) && prices.length > 0 ? prices : LIVE_GOVERNMENT_PRICES;
-  const normalizeCrop = (c) => (c || '').toLowerCase().replace(/soyabean/i, 'soybean');
-  const targetCrop = normalizeCrop(selectedCrop);
-
-  // 1. Primary: Match from real live/database prices list
-  let best = priceList
-    .filter(p => p && (p.crop || p.commodity) && normalizeCrop(p.crop || p.commodity) === targetCrop && Number(p.modal_price) > 0)
-    .sort((a, b) => (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0))[0];
-
-  // 2. Secondary: Match from trendData (computed from real database arithmetic)
-  if (!best && trendData?.current_price) {
-    best = {
-      crop: selectedCrop,
-      market: trendData.market || 'Lasalgaon',
-      modal_price: trendData.current_price,
-      min_price: Math.round(trendData.current_price * 0.95),
-      max_price: Math.round(trendData.current_price * 1.05),
-      volume: 450,
-    };
-  }
-
-  // 3. Tertiary: Match from authentic government arrivals dataset (810 real arrivals)
-  if (!best) {
-    const govMatch = LIVE_GOVERNMENT_PRICES.find(p => normalizeCrop(p.crop) === targetCrop);
-    if (govMatch) {
-      best = {
-        crop: selectedCrop,
-        market: govMatch.market,
-        modal_price: govMatch.modal_price,
-        min_price: govMatch.min_price,
-        max_price: govMatch.max_price,
-        volume: govMatch.volume,
-      };
-    }
-  }
-
-  // 4. Absolute last resort fallback only
-  if (!best) {
-    const demoMatch = DEMO_PRICES.find(p => normalizeCrop(p.crop) === targetCrop);
-    if (demoMatch) {
-      best = {
-        crop: selectedCrop,
-        market: demoMatch.market,
-        modal_price: demoMatch.modal_price,
-        min_price: demoMatch.min_price,
-        max_price: demoMatch.max_price,
-        volume: demoMatch.volume,
-      };
-    }
-  }
-
-  const isRising = trendData?.trend === 'RISING';
-  const isFalling = trendData?.trend === 'FALLING';
-
-  return (
-    <div className="card-primary col-span-2 relative overflow-hidden">
-      {/* Decorative background circle */}
-      <div className="absolute -right-8 -top-8 w-40 h-40 bg-green-50 rounded-full opacity-60 pointer-events-none" />
-      <div className="absolute -right-4 -bottom-8 w-24 h-24 bg-green-100 rounded-full opacity-40 pointer-events-none" />
-
-      <div className="relative flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <p className="section-label">{t('todaysBestPrice') || "Today's Best Price"}</p>
-          <div className="flex items-end gap-3 mt-1 flex-wrap">
-            <span className="stat-number">₹{Number(best.modal_price || 0).toLocaleString('en-IN')}</span>
-            <span className="text-sm text-gray-500 mb-1 font-medium">{t('perQuintal') || 'per quintal'}</span>
-          </div>
-
-          {/* Market + crop info */}
-          <div className="flex items-center gap-2 mt-2">
-            <MapPin className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
-            <span className="text-sm font-semibold text-gray-700">{best.market}</span>
-            <span className="text-gray-300">·</span>
-            <span className="text-sm text-gray-500">{cropT(best.crop)}</span>
-          </div>
-
-          {/* Trend indicator */}
-          {trendData && (
-            <div className="flex items-center gap-2 mt-3">
-              {isRising ? (
-                <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full border border-green-200">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  {t('rising') || 'Rising'} {trendData.percentage_change > 0 ? `+${trendData.percentage_change}%` : ''}
-                </span>
-              ) : isFalling ? (
-                <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-700 text-xs font-bold px-3 py-1.5 rounded-full border border-red-200">
-                  <TrendingDown className="w-3.5 h-3.5" />
-                  {t('falling') || 'Falling'} {trendData.percentage_change}%
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200">
-                  <Minus className="w-3.5 h-3.5" />
-                  {t('stable') || 'Stable'}
-                </span>
-              )}
-              <span className="text-xs text-gray-400">{t('sevenDaySignal') || '7-day signal'}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Crop image */}
-        <img
-          src={getCropImage(best.crop)}
-          alt={best.crop}
-          className="w-20 h-20 rounded-2xl object-cover border-2 border-green-100 shadow-md flex-shrink-0"
-        />
-      </div>
-
-      {/* Bottom row — min/max context */}
-      <div className="mt-4 pt-4 border-t border-green-100 flex items-center gap-6 text-xs text-gray-500">
-        <span>{t('minPrice') || 'Min'}: <strong className="text-gray-700">₹{Number(best.min_price || best.modal_price || 0).toLocaleString('en-IN')}</strong></span>
-        <span>{t('maxPrice') || 'Max'}: <strong className="text-gray-700">₹{Number(best.max_price || best.modal_price || 0).toLocaleString('en-IN')}</strong></span>
-        <span>Vol: <strong className="text-gray-700">{best.volume ? `${best.volume}T` : 'Active'}</strong></span>
-        <span className="ml-auto text-[10px] bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full">Best nearby price</span>
-      </div>
-    </div>
-  );
-}
-
+import { NextActionCard } from '../components/ui/NextActionCard';
 
 // ---- Trend Info Box ----
 function TrendInfoBox({ trendData }) {
@@ -176,15 +39,15 @@ function TrendInfoBox({ trendData }) {
 
   const bg = trend === 'RISING' ? 'bg-green-50 border-green-200'
     : trend === 'FALLING' ? 'bg-red-50 border-red-200'
-    : 'bg-amber-50 border-amber-200';
+      : 'bg-amber-50 border-amber-200';
 
   const Icon = trend === 'RISING' ? TrendingUp
     : trend === 'FALLING' ? TrendingDown
-    : Minus;
+      : Minus;
 
   const iconColor = trend === 'RISING' ? 'text-green-600'
     : trend === 'FALLING' ? 'text-red-600'
-    : 'text-amber-600';
+      : 'text-amber-600';
 
   return (
     <div className={`rounded-xl border p-4 ${bg}`}>
@@ -282,8 +145,8 @@ export default function FarmerDashboard() {
           const cleanCrop = selectedCrop === 'Soyabean' ? 'Soybean' : selectedCrop;
           const marketKey = selectedMarket && selectedMarket !== 'All' ? selectedMarket : 'All';
           const fallback = DEMO_PRICE_HISTORY[cleanCrop]?.[marketKey] ||
-                           DEMO_PRICE_HISTORY[cleanCrop]?.['All'] ||
-                           DEMO_PRICE_HISTORY['Onion']?.['All'] || [];
+            DEMO_PRICE_HISTORY[cleanCrop]?.['All'] ||
+            DEMO_PRICE_HISTORY['Onion']?.['All'] || [];
           setPriceHistory(fallback.slice(-15));
         }
         if (summaryRes && summaryRes.success && summaryRes.data) setSummary(summaryRes.data);
@@ -310,6 +173,75 @@ export default function FarmerDashboard() {
   }, [selectedCrop, selectedMarket]);
 
   const movingAvg = trendData?.moving_average || 0;
+
+  const nextAction = useMemo(() => {
+    if (summary.offers_received > 0) {
+      return {
+        title: `Buyer Offer Received`,
+        description: `You have ${summary.offers_received} pending offer(s). Review commercial terms to accept or negotiate.`,
+        badge: 'Offer Received',
+        badgeTone: 'warning',
+        urgency: 'Action required to proceed',
+        primaryAction: {
+          label: 'Review Offers',
+          to: '/offers',
+        },
+        contextItems: [
+          { label: 'Pending Offers', value: summary.offers_received },
+        ],
+      };
+    }
+    if (summary.pending_payments_count > 0) {
+      return {
+        title: `Active Deal in Progress`,
+        description: `You have ${summary.pending_payments_count} active deal(s) awaiting payment or dispatch.`,
+        badge: 'In Execution',
+        badgeTone: 'info',
+        urgency: 'Lifecycle active',
+        primaryAction: {
+          label: 'View Active Deals',
+          to: '/transactions?tab=active',
+        },
+        contextItems: [
+          { label: 'Pending Value', value: summary.pending_payments_formatted },
+        ],
+      };
+    }
+    if (summary.active_listings > 0) {
+      return {
+        title: `${summary.active_listings} Lot(s) Listed Live`,
+        description: 'Your produce is published on the decentralized market. Connect with matching buyers to initiate direct negotiations.',
+        badge: 'Listing Live',
+        badgeTone: 'success',
+        primaryAction: {
+          label: 'Find Matching Buyers',
+          to: '/matches',
+        },
+        secondaryAction: {
+          label: '+ List Another Lot',
+          to: '/sell',
+        },
+      };
+    }
+    return {
+      title: 'Ready to Sell Your Harvest at Direct Market Rates?',
+      description: 'List your produce in 60 seconds with live Agmarknet mandi price benchmarks and direct buyer matching.',
+      badge: 'Start Selling',
+      badgeTone: 'neutral',
+      primaryAction: {
+        label: '+ List Produce Now',
+        to: '/sell',
+      },
+      secondaryAction: {
+        label: 'Explore Live Mandi Prices',
+        to: '/prices',
+      },
+      contextItems: [
+        { label: 'Platform Fee', value: '₹0 Commission' },
+        { label: 'Payments', value: 'Direct Settlement' },
+      ],
+    };
+  }, [summary]);
 
   // Fallback activity feed when user has 0 notifications
   const defaultActivity = [
@@ -347,40 +279,182 @@ export default function FarmerDashboard() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-        {/* Primary Hero Card */}
-        <div className="xl:col-span-2">
-          <BestPriceHeroCard trendData={trendData} prices={prices} selectedCrop={selectedCrop} t={t} cropT={cropT} />
-        </div>
-        
-        {/* Secondary Summary Cards */}
-        <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SummaryCard
-            title={t('activeListings') || 'Active Listings'}
-            value={summary.active_listings}
-            sub={summary.active_listings_sub}
-            icon={Package}
-            color="bg-blue-50 text-blue-600"
-            accent="accent-bar-blue"
-          />
-          <SummaryCard
-            title={t('offersReceived') || 'Offers Received'}
-            value={summary.offers_received}
-            sub={summary.offers_received_sub}
-            icon={FileText}
-            color="bg-purple-50 text-purple-600"
-            accent="accent-bar-purple"
-          />
-          <SummaryCard
-            title={t('pendingPayments') || 'Pending Payments'}
-            value={summary.pending_payments_formatted}
-            sub={summary.pending_payments_sub}
-            icon={Wallet}
-            color="bg-amber-50 text-amber-600"
-            accent="accent-bar-amber"
-          />
-        </div>
+      {/* High-Contrast Next Action Card */}
+      <NextActionCard {...nextAction} />
+
+      {/* Summary Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Link to="/sell" className="card flex items-center gap-3.5 hover:shadow-md transition-shadow">
+          <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0">
+            <Package className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">Active Listings</p>
+            <p className="text-xl font-black text-gray-900 mt-0.5">{summary.active_listings} Lots</p>
+            <p className="text-[11px] text-emerald-700 font-semibold truncate">+ List new harvest</p>
+          </div>
+        </Link>
+
+        <Link to="/offers" className="card flex items-center gap-3.5 hover:shadow-md transition-shadow relative">
+          <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">Incoming Offers</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xl font-black text-gray-900">{summary.offers_received}</p>
+              {summary.offers_received > 0 && (
+                <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-300 animate-pulse">
+                  Action Required
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-500 truncate">Review buyer bids</p>
+          </div>
+        </Link>
+
+        <Link to="/transactions?tab=active" className="card flex items-center gap-3.5 hover:shadow-md transition-shadow">
+          <div className="w-11 h-11 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center flex-shrink-0">
+            <Wallet className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">Active Deals</p>
+            <p className="text-xl font-black text-gray-900 mt-0.5">{summary.pending_payments_count} In Progress</p>
+            <p className="text-[11px] text-teal-700 font-semibold truncate">View payment & dispatch</p>
+          </div>
+        </Link>
+      </div>
+
+      {/* 4 State-Aware Action Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Card 1: Sell Produce */}
+        <Link
+          to="/sell"
+          className="card group flex flex-col gap-3 hover:border-green-300 hover:shadow-md transition-all border-2 border-transparent"
+        >
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center group-hover:bg-green-200 transition-colors">
+              <Package className="w-5 h-5 text-green-700" />
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-green-600 transition-colors" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Sell Produce</p>
+            {summary.active_listings > 0 ? (
+              <>
+                <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.active_listings}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {summary.active_listings === 1 ? 'lot listed' : 'lots live'} — tap to add more
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-green-700 mt-1">+ List Produce</p>
+                <p className="text-xs text-gray-400 mt-0.5">No active listings</p>
+              </>
+            )}
+          </div>
+        </Link>
+
+        {/* Card 2: Market Prices */}
+        <Link
+          to="/prices"
+          className="card group flex flex-col gap-3 hover:border-blue-300 hover:shadow-md transition-all border-2 border-transparent"
+        >
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+              <TrendingUp className="w-5 h-5 text-blue-700" />
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-blue-600 transition-colors" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Market Price</p>
+            {prices.length > 0 ? (() => {
+              const best = prices.filter(p => p.crop === selectedCrop).sort((a, b) => (b.modal_price || 0) - (a.modal_price || 0))[0];
+              return best ? (
+                <>
+                  <p className="text-2xl font-black text-gray-900 mt-0.5">₹{Number(best.modal_price).toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{selectedCrop} · {best.market}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-blue-700 mt-1">See Rates</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Tap to view mandi prices</p>
+                </>
+              );
+            })() : (
+              <>
+                <p className="text-sm font-semibold text-blue-700 mt-1">See Today's Rates</p>
+                <p className="text-xs text-gray-400 mt-0.5">Live Agmarknet prices</p>
+              </>
+            )}
+          </div>
+        </Link>
+
+        {/* Card 3: Buyer Demand */}
+        <Link
+          to="/matches"
+          className="card group flex flex-col gap-3 hover:border-purple-300 hover:shadow-md transition-all border-2 border-transparent"
+        >
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+              <MapPin className="w-5 h-5 text-purple-700" />
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-purple-600 transition-colors" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Buyer Demand</p>
+            {buyers.length > 0 ? (
+              <>
+                <p className="text-2xl font-black text-gray-900 mt-0.5">{buyers.length}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  buyer{buyers.length === 1 ? '' : 's'} nearby
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-purple-700 mt-1">Find Buyers</p>
+                <p className="text-xs text-gray-400 mt-0.5">See who's buying now</p>
+              </>
+            )}
+          </div>
+        </Link>
+
+        {/* Card 4: Active Deal */}
+        <Link
+          to={summary.pending_payments_count > 0 ? '/transactions?tab=active' : '/transactions'}
+          className={`card group flex flex-col gap-3 hover:shadow-md transition-all border-2 ${summary.pending_payments_count > 0 ? 'border-amber-200 bg-amber-50/50 hover:border-amber-400' : 'border-transparent hover:border-teal-300'
+            }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${summary.pending_payments_count > 0 ? 'bg-amber-100 group-hover:bg-amber-200' : 'bg-teal-100 group-hover:bg-teal-200'
+              }`}>
+              <FileText className={`w-5 h-5 ${summary.pending_payments_count > 0 ? 'text-amber-700' : 'text-teal-700'}`} />
+            </div>
+            <ArrowUpRight className={`w-4 h-4 transition-colors ${summary.pending_payments_count > 0 ? 'text-amber-400 group-hover:text-amber-600' : 'text-gray-300 group-hover:text-teal-600'}`} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Active Deal</p>
+            {summary.pending_payments_count > 0 ? (
+              <>
+                <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.pending_payments_count}</p>
+                <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                  {summary.pending_payments_count === 1 ? '1 trade in progress →' : `${summary.pending_payments_count} trades in progress →`}
+                </p>
+              </>
+            ) : summary.offers_received > 0 ? (
+              <>
+                <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.offers_received}</p>
+                <p className="text-xs text-orange-600 font-semibold mt-0.5">offer{summary.offers_received === 1 ? '' : 's'} awaiting review</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-teal-700 mt-1">No active trades</p>
+                <p className="text-xs text-gray-400 mt-0.5">Start by listing produce</p>
+              </>
+            )}
+          </div>
+        </Link>
       </div>
 
       {/* Main content grid */}
@@ -536,27 +610,27 @@ export default function FarmerDashboard() {
                           />
                           <span>{cropT(cropName)}</span>
                         </td>
-                      <td className="py-3 text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-gray-400" />
-                          {p.market || 'APMC'}
-                        </span>
-                      </td>
-                      <td className="py-3 text-right font-bold text-green-800">
-                        ₹{Number(p.modal_price || 0).toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-3 text-right hidden sm:table-cell">
-                        {p.change_pct != null ? (
-                          <span className={Number(p.change_pct) >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {Number(p.change_pct) >= 0 ? '+' : ''}{p.change_pct}%
+                        <td className="py-3 text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-gray-400" />
+                            {p.market || 'APMC'}
                           </span>
-                        ) : (
-                          <span className="text-gray-400">0.0%</span>
-                        )}
-                      </td>
-                      <td className="py-3 text-center">
-                        <TrendBadge trend={p.trend} />
-                      </td>
+                        </td>
+                        <td className="py-3 text-right font-bold text-green-800">
+                          ₹{Number(p.modal_price || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3 text-right hidden sm:table-cell">
+                          {p.change_pct != null ? (
+                            <span className={Number(p.change_pct) >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {Number(p.change_pct) >= 0 ? '+' : ''}{p.change_pct}%
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">0.0%</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-center">
+                          <TrendBadge trend={p.trend} />
+                        </td>
                       </tr>
                     );
                   })}
