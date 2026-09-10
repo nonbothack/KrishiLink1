@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { getMarketLocations } from '../../services/api';
+// API dependency removed per requirements
 import { useLanguage } from '../../hooks/useLanguage';
 
 // =============================================================
@@ -185,7 +185,7 @@ export default function MarketMap({
 }) {
   const { t } = useLanguage();
   const [category, setCategory] = useState('all');
-  const [radius, setRadius] = useState('100');
+  const [radius, setRadius] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLocation, setSelectedLocation] = useState(null);
 
@@ -245,7 +245,7 @@ export default function MarketMap({
   }, [requestGeolocation]);
 
   // Load locations from backend
-  const fetchLocations = useCallback(async () => {
+  const fetchLocations = useCallback(() => {
     setLoading(true);
     setError(null);
 
@@ -280,29 +280,10 @@ export default function MarketMap({
       }
     };
 
-    try {
-      const res = await getMarketLocations({
-        category,
-        radius_km: radius === 'all' ? null : Number(radius),
-        near_lat: userCoords?.lat || null,
-        near_lng: userCoords?.lng || null,
-        search: searchTerm,
-      });
-
-      if (res && res.success && res.data && res.data.locations && res.data.locations.length > 0) {
-        setLocations(res.data.locations);
-        if (res.data.counts) {
-          setCounts(res.data.counts);
-        }
-      } else {
-        applyFallback();
-      }
-    } catch {
-      applyFallback();
-    } finally {
-      setLoading(false);
-    }
-  }, [category, radius, userCoords, searchTerm, defaultCenter, mapCenter]);
+    // No API calls - strictly use local 80-location dataset
+    applyFallback();
+    setLoading(false);
+  }, [category, radius, userCoords, defaultCenter, mapCenter]);
 
   useEffect(() => {
     fetchLocations();
