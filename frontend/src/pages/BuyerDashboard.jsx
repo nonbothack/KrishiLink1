@@ -10,19 +10,22 @@ import { LoadingState } from '../components/States';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { ToastContainer } from '../components/ui/Toast';
+import Tilt3DCard from '../components/visual/Tilt3DCard';
 
 function SummaryCard({ title, value, sub, icon: Icon, color }) {
   return (
-    <div className="card flex items-start gap-4">
-      <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center flex-shrink-0`}>
-        <Icon className="w-6 h-6" />
+    <Tilt3DCard className="h-full">
+      <div className="card flex items-start gap-4 h-full">
+        <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center flex-shrink-0`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <div>
+          <p className="text-sm text-gray-500 font-medium">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
+          {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        </div>
       </div>
-      <div>
-        <p className="text-sm text-gray-500 font-medium">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-      </div>
-    </div>
+    </Tilt3DCard>
   );
 }
 

@@ -29,8 +29,8 @@ import {
 import { LIVE_GOVERNMENT_PRICES } from '../data/liveMandiData';
 import { DEMO_PRICES, DEMO_PRICE_HISTORY, DEMO_BUYERS, DEMO_STORAGE } from '../data/demoData';
 import { TrendBadge, VerifiedBadge } from '../components/Badges';
-import { LoadingState } from '../components/States';
 import { NextActionCard } from '../components/ui/NextActionCard';
+import Tilt3DCard from '../components/visual/Tilt3DCard';
 
 // ---- Trend Info Box ----
 function TrendInfoBox({ trendData }) {
@@ -326,136 +326,144 @@ export default function FarmerDashboard() {
         </Link>
       </div>
 
-      {/* 4 State-Aware Action Cards */}
+      {/* 4 State-Aware Action Cards with 3D Tilt & Specular Glare */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Card 1: Sell Produce */}
-        <Link
-          to="/sell"
-          className="card group flex flex-col gap-3 hover:border-green-300 hover:shadow-md transition-all border-2 border-transparent"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center group-hover:bg-green-200 transition-colors">
-              <Package className="w-5 h-5 text-green-700" />
+        <Tilt3DCard className="h-full">
+          <Link
+            to="/sell"
+            className="card group flex flex-col justify-between h-full gap-3 hover:border-green-300 hover:shadow-md transition-all border-2 border-transparent"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                <Package className="w-5 h-5 text-green-700" />
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-green-600 transition-colors" />
             </div>
-            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-green-600 transition-colors" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Sell Produce</p>
-            {summary.active_listings > 0 ? (
-              <>
-                <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.active_listings}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {summary.active_listings === 1 ? 'lot listed' : 'lots live'} — tap to add more
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-green-700 mt-1">+ List Produce</p>
-                <p className="text-xs text-gray-400 mt-0.5">No active listings</p>
-              </>
-            )}
-          </div>
-        </Link>
-
-        {/* Card 2: Market Prices */}
-        <Link
-          to="/prices"
-          className="card group flex flex-col gap-3 hover:border-blue-300 hover:shadow-md transition-all border-2 border-transparent"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-              <TrendingUp className="w-5 h-5 text-blue-700" />
-            </div>
-            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-blue-600 transition-colors" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Market Price</p>
-            {prices.length > 0 ? (() => {
-              const best = prices.filter(p => p.crop === selectedCrop).sort((a, b) => (b.modal_price || 0) - (a.modal_price || 0))[0];
-              return best ? (
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Sell Produce</p>
+              {summary.active_listings > 0 ? (
                 <>
-                  <p className="text-2xl font-black text-gray-900 mt-0.5">₹{Number(best.modal_price).toLocaleString('en-IN')}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{selectedCrop} · {best.market}</p>
+                  <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.active_listings}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {summary.active_listings === 1 ? 'lot listed' : 'lots live'} — tap to add more
+                  </p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-semibold text-blue-700 mt-1">See Rates</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Tap to view mandi prices</p>
+                  <p className="text-sm font-semibold text-green-700 mt-1">+ List Produce</p>
+                  <p className="text-xs text-gray-400 mt-0.5">No active listings</p>
                 </>
-              );
-            })() : (
-              <>
-                <p className="text-sm font-semibold text-blue-700 mt-1">See Today's Rates</p>
-                <p className="text-xs text-gray-400 mt-0.5">Live Agmarknet prices</p>
-              </>
-            )}
-          </div>
-        </Link>
+              )}
+            </div>
+          </Link>
+        </Tilt3DCard>
+
+        {/* Card 2: Market Prices */}
+        <Tilt3DCard className="h-full">
+          <Link
+            to="/prices"
+            className="card group flex flex-col justify-between h-full gap-3 hover:border-blue-300 hover:shadow-md transition-all border-2 border-transparent"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                <TrendingUp className="w-5 h-5 text-blue-700" />
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-blue-600 transition-colors" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Market Price</p>
+              {prices.length > 0 ? (() => {
+                const best = prices.filter(p => p.crop === selectedCrop).sort((a, b) => (b.modal_price || 0) - (a.modal_price || 0))[0];
+                return best ? (
+                  <>
+                    <p className="text-2xl font-black text-gray-900 mt-0.5">₹{Number(best.modal_price).toLocaleString('en-IN')}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{selectedCrop} · {best.market}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-blue-700 mt-1">See Rates</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Tap to view mandi prices</p>
+                  </>
+                );
+              })() : (
+                <>
+                  <p className="text-sm font-semibold text-blue-700 mt-1">See Today's Rates</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Live Agmarknet prices</p>
+                </>
+              )}
+            </div>
+          </Link>
+        </Tilt3DCard>
 
         {/* Card 3: Buyer Demand */}
-        <Link
-          to="/matches"
-          className="card group flex flex-col gap-3 hover:border-purple-300 hover:shadow-md transition-all border-2 border-transparent"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-              <MapPin className="w-5 h-5 text-purple-700" />
+        <Tilt3DCard className="h-full">
+          <Link
+            to="/matches"
+            className="card group flex flex-col justify-between h-full gap-3 hover:border-purple-300 hover:shadow-md transition-all border-2 border-transparent"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                <MapPin className="w-5 h-5 text-purple-700" />
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-purple-600 transition-colors" />
             </div>
-            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-purple-600 transition-colors" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Buyer Demand</p>
-            {buyers.length > 0 ? (
-              <>
-                <p className="text-2xl font-black text-gray-900 mt-0.5">{buyers.length}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  buyer{buyers.length === 1 ? '' : 's'} nearby
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-purple-700 mt-1">Find Buyers</p>
-                <p className="text-xs text-gray-400 mt-0.5">See who's buying now</p>
-              </>
-            )}
-          </div>
-        </Link>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Buyer Demand</p>
+              {buyers.length > 0 ? (
+                <>
+                  <p className="text-2xl font-black text-gray-900 mt-0.5">{buyers.length}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    buyer{buyers.length === 1 ? '' : 's'} nearby
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-purple-700 mt-1">Find Buyers</p>
+                  <p className="text-xs text-gray-400 mt-0.5">See who's buying now</p>
+                </>
+              )}
+            </div>
+          </Link>
+        </Tilt3DCard>
 
         {/* Card 4: Active Deal */}
-        <Link
-          to={summary.pending_payments_count > 0 ? '/transactions?tab=active' : '/transactions'}
-          className={`card group flex flex-col gap-3 hover:shadow-md transition-all border-2 ${summary.pending_payments_count > 0 ? 'border-amber-200 bg-amber-50/50 hover:border-amber-400' : 'border-transparent hover:border-teal-300'
-            }`}
-        >
-          <div className="flex items-center justify-between">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${summary.pending_payments_count > 0 ? 'bg-amber-100 group-hover:bg-amber-200' : 'bg-teal-100 group-hover:bg-teal-200'
-              }`}>
-              <FileText className={`w-5 h-5 ${summary.pending_payments_count > 0 ? 'text-amber-700' : 'text-teal-700'}`} />
+        <Tilt3DCard className="h-full">
+          <Link
+            to={summary.pending_payments_count > 0 ? '/transactions?tab=active' : '/transactions'}
+            className={`card group flex flex-col justify-between h-full gap-3 hover:shadow-md transition-all border-2 ${summary.pending_payments_count > 0 ? 'border-amber-200 bg-amber-50/50 hover:border-amber-400' : 'border-transparent hover:border-teal-300'
+              }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${summary.pending_payments_count > 0 ? 'bg-amber-100 group-hover:bg-amber-200' : 'bg-teal-100 group-hover:bg-teal-200'
+                }`}>
+                <FileText className={`w-5 h-5 ${summary.pending_payments_count > 0 ? 'text-amber-700' : 'text-teal-700'}`} />
+              </div>
+              <ArrowUpRight className={`w-4 h-4 transition-colors ${summary.pending_payments_count > 0 ? 'text-amber-400 group-hover:text-amber-600' : 'text-gray-300 group-hover:text-teal-600'}`} />
             </div>
-            <ArrowUpRight className={`w-4 h-4 transition-colors ${summary.pending_payments_count > 0 ? 'text-amber-400 group-hover:text-amber-600' : 'text-gray-300 group-hover:text-teal-600'}`} />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Active Deal</p>
-            {summary.pending_payments_count > 0 ? (
-              <>
-                <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.pending_payments_count}</p>
-                <p className="text-xs text-amber-700 font-semibold mt-0.5">
-                  {summary.pending_payments_count === 1 ? '1 trade in progress →' : `${summary.pending_payments_count} trades in progress →`}
-                </p>
-              </>
-            ) : summary.offers_received > 0 ? (
-              <>
-                <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.offers_received}</p>
-                <p className="text-xs text-orange-600 font-semibold mt-0.5">offer{summary.offers_received === 1 ? '' : 's'} awaiting review</p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-teal-700 mt-1">No active trades</p>
-                <p className="text-xs text-gray-400 mt-0.5">Start by listing produce</p>
-              </>
-            )}
-          </div>
-        </Link>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Active Deal</p>
+              {summary.pending_payments_count > 0 ? (
+                <>
+                  <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.pending_payments_count}</p>
+                  <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                    {summary.pending_payments_count === 1 ? '1 trade in progress →' : `${summary.pending_payments_count} trades in progress →`}
+                  </p>
+                </>
+              ) : summary.offers_received > 0 ? (
+                <>
+                  <p className="text-2xl font-black text-gray-900 mt-0.5">{summary.offers_received}</p>
+                  <p className="text-xs text-orange-600 font-semibold mt-0.5">offer{summary.offers_received === 1 ? '' : 's'} awaiting review</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-teal-700 mt-1">No active trades</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Start by listing produce</p>
+                </>
+              )}
+            </div>
+          </Link>
+        </Tilt3DCard>
       </div>
 
       {/* Main content grid */}

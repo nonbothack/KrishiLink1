@@ -3,13 +3,14 @@
 // Manages the active language: 'en', 'mr', or 'hi'
 // =============================================================
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { getTranslation, getGreeting, getCropTranslation } from '../utils/translations';
+import { translateDOMTree } from '../utils/universalTranslator';
 
 const LanguageContext = createContext(null);
 
 export function LanguageProvider({ children }) {
-  // Default language is English
+  // Default language is English, with saved choice from localStorage
   const [language, setLanguage] = useState(
     localStorage.getItem('krishilink_lang') || 'en'
   );
@@ -19,13 +20,41 @@ export function LanguageProvider({ children }) {
     localStorage.setItem('krishilink_lang', lang);
   };
 
-  // t('key') gives the translation for the current language
-  const t = (key) => getTranslation(language, key);
+  // Sync document html lang attribute and trigger universal DOM translation
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
+      translateDOMTree(document.body, language);
+      if (language !== 'en') {
+        let timeoutId = null;
+        const observer = new MutationObserver(() => {
+          if (timeoutId) clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            translateDOMTree(document.body, language);
+          }, 150);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        return () => {
+          if (timeoutId) clearTimeout(timeoutId);
+          observer.disconnect();
+        };
+      }
+    }
+  }, [language]);
+
+  // t('key' or 'Phrase', fallback) returns translation for active language
+  const t = (key, fallback) => {
+    if (!key) return '';
+    const res = getTranslation(language, key);
+    return res !== undefined && res !== '' ? res : (fallback || key);
+  };
+
   const cropT = (cropName) => getCropTranslation(cropName, language);
 
   const value = {
     language,
     changeLanguage,
+    setLanguage: changeLanguage,
     t,
     cropT,
     greeting: getGreeting(language),

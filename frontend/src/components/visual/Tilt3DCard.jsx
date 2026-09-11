@@ -63,7 +63,7 @@ export default function Tilt3DCard({
       {children}
       {glare && (
         <div
-          className="absolute inset-0 pointer-events-none rounded-3xl transition-opacity duration-300 z-30"
+          className="absolute inset-0 pointer-events-none rounded-2xl overflow-hidden transition-opacity duration-300 z-30"
           style={{
             opacity: glarePos.opacity,
             background: `radial-gradient(circle 350px at ${glarePos.x}% ${glarePos.y}%, rgba(255,255,255,0.35), transparent 70%)`,

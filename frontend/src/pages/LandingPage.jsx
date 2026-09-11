@@ -18,7 +18,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Sprout, ArrowRight, ArrowUpRight, ShoppingBag, Tractor, Truck, FlaskConical,
   ShieldCheck, FileCheck2, Radio, CheckCircle2, Layers, Wallet,
-  Handshake, Boxes, TrendingUp, Calculator, Check, ChevronRight, HelpCircle, MapPin
+  Handshake, Boxes, TrendingUp, Calculator, Check, ChevronRight, HelpCircle
 } from 'lucide-react';
 
 import { CROPS_METADATA, getCropImage } from '../utils/cropImages';

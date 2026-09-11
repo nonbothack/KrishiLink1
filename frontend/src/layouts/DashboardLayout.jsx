@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../services/api';
+import MobileBottomNav from '../components/ui/MobileBottomNav';
 
 
 function SidebarContent({ user, navItems, location, setSidebarOpen, handleLogout, t, mobile = false }) {
@@ -302,10 +303,13 @@ export default function DashboardLayout({ children }) {
       </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-6 xl:p-8">
+        <main className="flex-1 p-4 lg:p-6 xl:p-8 pb-20 lg:pb-8">
           {children || <Outlet />}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
     </div>
   );
 }
