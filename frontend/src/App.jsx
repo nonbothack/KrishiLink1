@@ -12,6 +12,7 @@ import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 
 import React, { Suspense, lazy } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Public pages
 import LandingPage from './pages/LandingPage';
@@ -69,8 +70,9 @@ function App() {
     <LanguageProvider>
       <AuthProvider>
         <BrowserRouter>
-          <Suspense fallback={<div className="flex h-screen w-full items-center justify-center text-green-700 font-medium">Loading Page...</div>}>
-            <Routes>
+          <ErrorBoundary>
+            <Suspense fallback={<div className="flex h-screen w-full items-center justify-center text-green-700 font-medium">Loading Page...</div>}>
+              <Routes>
               {/* ---- PUBLIC ROUTES (no login required) ---- */}
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<LandingPage />} />
@@ -118,7 +120,8 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
-        </BrowserRouter>
+        </ErrorBoundary>
+      </BrowserRouter>
       </AuthProvider>
     </LanguageProvider>
   );
