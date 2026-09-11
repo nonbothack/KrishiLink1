@@ -241,7 +241,12 @@ def sync_daily_prices(db: Session, force: bool = False) -> dict[str, Any]:
                     continue
 
                 factor = MARKET_FACTORS.get(market_name, 1.0)
-                modal_val = round(cur_state_modal * factor, 0)
+                if cur_date != today:
+                    h_val = int(hashlib.md5(f"{crop_name}-{market_name}-{cur_date}".encode()).hexdigest()[:8], 16)
+                    daily_jitter = ((h_val % 37) - 18) / 1000.0  # realistic -1.8% to +1.8% daily movement
+                    modal_val = round(cur_state_modal * factor * (1.0 + daily_jitter), 0)
+                else:
+                    modal_val = round(cur_state_modal * factor, 0)
                 min_val = round(modal_val * 0.93, 0)
                 max_val = round(modal_val * 1.07, 0)
                 vol_val = round(300.0 + (hash(f"{crop_name}{market_name}{cur_date}") % 400), 0)
@@ -368,14 +373,30 @@ def calibrate_15day_history(db: Session, force: bool = False) -> dict[str, Any]:
                     needs_calibration = True
 
             if not needs_calibration:
+                recent_obs = (
+                    db.query(PriceObservation.modal_price)
+                    .filter(
+                        PriceObservation.crop_id == crop_obj.id,
+                        PriceObservation.market_id == market_obj.id,
+                    )
+                    .order_by(PriceObservation.price_date.desc())
+                    .limit(5)
+                    .all()
+                )
+                if len(recent_obs) >= 3:
+                    vals = [float(r[0]) for r in recent_obs if r[0]]
+                    if len(vals) >= 3 and any(abs(vals[k] - vals[k + 1]) < 0.01 for k in range(len(vals) - 1)):
+                        needs_calibration = True
+
+            if not needs_calibration:
                 continue
 
             for cur_date in days_range:
                 days_from_today = (today - cur_date).days
-                h_val = int(hashlib.md5(f"{crop_name}-{market_name}-{cur_date}".encode()).hexdigest()[:6], 16)
-                daily_jitter = ((h_val % 16) - 8) / 1000.0  # smooth -0.8% to +0.8%
+                h_val = int(hashlib.md5(f"{crop_name}-{market_name}-{cur_date}".encode()).hexdigest()[:8], 16)
+                daily_jitter = ((h_val % 37) - 18) / 1000.0  # realistic -1.8% to +1.8% daily movement
 
-                trend_factor = (1.0 - (days_from_today * 0.003) + daily_jitter) if days_from_today > 0 else 1.0
+                trend_factor = (1.0 - (days_from_today * 0.0025) + daily_jitter) if days_from_today > 0 else 1.0
                 modal_val = round(target_today * trend_factor, 0)
                 min_val = round(modal_val * 0.93, 0)
                 max_val = round(modal_val * 1.07, 0)

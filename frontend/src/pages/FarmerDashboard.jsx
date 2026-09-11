@@ -143,8 +143,9 @@ export default function FarmerDashboard() {
           setPriceHistory(histRes.data);
         } else {
           const cleanCrop = selectedCrop === 'Soyabean' ? 'Soybean' : selectedCrop;
-          const marketKey = selectedMarket && selectedMarket !== 'All' ? selectedMarket : 'All';
+          const marketKey = selectedMarket && selectedMarket !== 'All' ? selectedMarket.replace(/\s*APMC/i, '').trim() : 'All';
           const fallback = DEMO_PRICE_HISTORY[cleanCrop]?.[marketKey] ||
+            DEMO_PRICE_HISTORY[cleanCrop]?.[selectedMarket] ||
             DEMO_PRICE_HISTORY[cleanCrop]?.['All'] ||
             DEMO_PRICE_HISTORY['Onion']?.['All'] || [];
           setPriceHistory(fallback.slice(-15));

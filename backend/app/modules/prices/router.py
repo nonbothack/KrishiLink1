@@ -2,7 +2,7 @@ import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -279,9 +279,17 @@ def get_price_trend(
     market_display = market or "All Mandis (Average)"
     if crop:
         if market and market.lower() not in ("all", "all mandis", "all mandis (average)", ""):
-            m = db.query(Market).filter(Market.name.ilike(market)).first()
+            clean_m = market.replace(" APMC", "").replace(" apmc", "").strip() if market else ""
+            m = (
+                db.query(Market)
+                .join(PriceObservation, PriceObservation.market_id == Market.id)
+                .filter(or_(Market.name.ilike(clean_m), Market.name.ilike(market)))
+                .first()
+            )
             if not m:
-                m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
+                m = db.query(Market).filter(or_(Market.name.ilike(clean_m), Market.name.ilike(market))).first()
+            if not m:
+                m = db.query(Market).filter(Market.name.ilike(f"%{clean_m}%")).first()
             if m:
                 market_display = m.name
                 obs = (
@@ -371,9 +379,17 @@ def price_history(
     data = []
     if crop:
         if market and market.lower() not in ("all", "all mandis", "all mandis (average)", ""):
-            m = db.query(Market).filter(Market.name.ilike(market)).first()
+            clean_m = market.replace(" APMC", "").replace(" apmc", "").strip() if market else ""
+            m = (
+                db.query(Market)
+                .join(PriceObservation, PriceObservation.market_id == Market.id)
+                .filter(or_(Market.name.ilike(clean_m), Market.name.ilike(market)))
+                .first()
+            )
             if not m:
-                m = db.query(Market).filter(Market.name.ilike(f"%{market}%")).first()
+                m = db.query(Market).filter(or_(Market.name.ilike(clean_m), Market.name.ilike(market))).first()
+            if not m:
+                m = db.query(Market).filter(Market.name.ilike(f"%{clean_m}%")).first()
             if m:
                 obs = (
                     db.query(PriceObservation)
