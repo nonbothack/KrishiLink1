@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, CheckCircle2, ArrowRight } from 'lucide-react';
-import { createLot } from '../services/api';
+import { Package, CheckCircle2, ArrowRight, TrendingUp } from 'lucide-react';
+import { createLot, getTrend } from '../services/api';
+import { LIVE_GOVERNMENT_PRICES } from '../data/liveMandiData';
+import { DEMO_PRICES } from '../data/demoData';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -32,6 +34,56 @@ export default function SellPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [createdLot, setCreatedLot] = useState(null);
+  const [currentPriceInfo, setCurrentPriceInfo] = useState(null);
+  const [, setPriceLoading] = useState(false);
+
+  useEffect(() => {
+    if (!formData.crop) {
+      setCurrentPriceInfo(null);
+      return;
+    }
+
+    let active = true;
+    const cleanCrop = formData.crop.toLowerCase().replace(/soyabean/i, 'soybean');
+
+    // Immediate baseline from verified dataset so price shows instantly with zero delay
+    const govMatch = LIVE_GOVERNMENT_PRICES.find(
+      p => p.crop.toLowerCase().replace(/soyabean/i, 'soybean') === cleanCrop
+    );
+    const demoMatch = DEMO_PRICES.find(
+      p => p.crop.toLowerCase().replace(/soyabean/i, 'soybean') === cleanCrop
+    );
+    const initialMatch = govMatch || demoMatch;
+    if (initialMatch) {
+      setCurrentPriceInfo({
+        price: initialMatch.modal_price,
+        market: initialMatch.market,
+      });
+    }
+
+    // Then asynchronously fetch live API price trend from backend /prices/trends/{crop}
+    async function fetchLiveTrend() {
+      setPriceLoading(true);
+      try {
+        const res = await getTrend(formData.crop);
+        if (active && res && res.success && res.data && res.data.current_price) {
+          setCurrentPriceInfo({
+            price: res.data.current_price,
+            market: res.data.market,
+          });
+        }
+      } catch {
+        // Fallback baseline remains active
+      } finally {
+        if (active) setPriceLoading(false);
+      }
+    }
+
+    fetchLiveTrend();
+    return () => {
+      active = false;
+    };
+  }, [formData.crop]);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -116,7 +168,11 @@ export default function SellPage() {
               <ArrowRight className="w-5 h-5" />
             </button>
             <button
-              onClick={() => { setSuccess(false); setFormData({ crop: '', quantity: '', unit: 'Quintal', grade: '', location: user?.location || '', expected_price: '', available_date: '', notes: '' }); }}
+              onClick={() => {
+                setSuccess(false);
+                setFormData({ crop: '', quantity: '', unit: 'Quintal', grade: '', location: user?.location || '', expected_price: '', available_date: '', notes: '' });
+                setCurrentPriceInfo(null);
+              }}
               className="btn-secondary"
             >
               {t('createListing') || 'Create Another Listing'}
@@ -237,6 +293,38 @@ export default function SellPage() {
                 value={formData.expected_price}
                 onChange={(e) => handleChange('expected_price', e.target.value)}
               />
+
+              {/* Live Current Price display right below the price input */}
+              {formData.crop ? (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 p-2.5 bg-green-50/80 border border-green-200 rounded-xl">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <TrendingUp className="w-4 h-4 text-green-600 shrink-0" />
+                    <span className="text-xs text-gray-600">
+                      {t('currentPrice') || 'Current Price'} ({cropT(formData.crop)}):
+                    </span>
+                    {currentPriceInfo ? (
+                      <span className="text-sm font-bold text-green-700">
+                        ₹{Number(currentPriceInfo.price).toLocaleString('en-IN')}
+                        <span className="text-xs font-normal text-green-600">/qtl</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">Loading...</span>
+                    )}
+                  </div>
+                  {currentPriceInfo && (
+                    <button
+                      type="button"
+                      onClick={() => handleChange('expected_price', currentPriceInfo.price)}
+                      className="text-xs font-semibold text-green-700 hover:text-green-800 hover:underline shrink-0"
+                      title="Click to use this price"
+                    >
+                      {t('usePrice') || 'Use this price'}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">Select a crop above to see current market price</p>
+              )}
               <p className="text-xs text-gray-400 mt-1">Buyers can make offers above or below this</p>
             </div>
             <div>
