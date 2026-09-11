@@ -45,15 +45,17 @@ export default function BuyerDashboard() {
   };
   const removeToast = (id) => setToasts(p => p.filter(t => t.id !== id));
 
-  useEffect(() => {
-    async function load() {
-      const res = await getLots();
-      if (res && res.success && Array.isArray(res.data)) {
-        setLots(res.data);
-      }
-      setLoading(false);
+  const loadLots = async () => {
+    setLoading(true);
+    const res = await getLots(null, { limit: 100 });
+    if (res && res.success && Array.isArray(res.data)) {
+      setLots(res.data);
     }
-    load();
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadLots();
   }, []);
 
   const lotList = Array.isArray(lots) ? lots : [];
@@ -61,12 +63,16 @@ export default function BuyerDashboard() {
     if (!l) return false;
     const cropName = l.crop_name || l.crop || '';
     const loc = l.district || l.location_text || l.location || '';
-    if (cropFilter !== 'All' && cropName !== cropFilter) return false;
+    if (cropFilter !== 'All' && cropName.toLowerCase() !== cropFilter.toLowerCase()) return false;
     if (searchTerm && !cropName.toLowerCase().includes(searchTerm.toLowerCase()) &&
         !loc.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     const s = (l.status || '').toLowerCase();
     return s === 'published' || s === 'active' || s === 'matched';
   });
+
+  const knownCrops = ['All', 'Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat', 'Rice', 'Potato', 'Chilli'];
+  const dynamicCrops = Array.from(new Set(lotList.map(l => l.crop_name || l.crop).filter(Boolean)));
+  const filterOptions = Array.from(new Set([...knownCrops, ...dynamicCrops]));
 
   async function handleOffer(lot) {
     setOfferingSent(p => ({ ...p, [lot.id]: 'sending' }));
@@ -79,6 +85,7 @@ export default function BuyerDashboard() {
     });
     if (res && res.success) {
       setOfferingSent(p => ({ ...p, [lot.id]: 'sent' }));
+      addToast('Offer sent! Track updates in the My Offers tab.', 'success');
     } else {
       addToast(res?.error || 'Could not send offer. Please try again.', 'error');
       setOfferingSent(p => ({ ...p, [lot.id]: null }));
@@ -88,13 +95,22 @@ export default function BuyerDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {t('buyerMarketplace')}
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {t('welcome')} {user?.name ? `${user.name.split(' ')[0]} — ` : ''}{t('buyerSubtitle')}
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {t('buyerMarketplace')}
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {t('welcome')} {user?.name ? `${user.name.split(' ')[0]} — ` : ''}{t('buyerSubtitle')}
+          </p>
+        </div>
+        <button
+          onClick={loadLots}
+          disabled={loading}
+          className="btn-secondary btn-sm flex items-center gap-2"
+        >
+          {loading ? 'Refreshing...' : 'Refresh Listings'}
+        </button>
       </div>
 
       {/* Summary */}
@@ -124,7 +140,7 @@ export default function BuyerDashboard() {
             />
           </div>
           <select className="input sm:w-44" value={cropFilter} onChange={(e) => setCropFilter(e.target.value)}>
-            {['All', 'Onion', 'Tomato', 'Soybean', 'Cotton', 'Wheat'].map(c => (
+            {filterOptions.map(c => (
               <option key={c} value={c}>{c === 'All' ? t('allCrops') : cropT(c)}</option>
             ))}
           </select>

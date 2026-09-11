@@ -248,16 +248,22 @@ export async function getTrend(crop, market = null) {
 }
 
 // 4. Produce Listings (Lots)
-export async function getLots(farmerId = null) {
+export async function getLots(farmerId = null, options = {}) {
   if (isExplicitDemoMode()) {
     return { success: true, data: DEMO_LOTS, provenance: 'demo' };
   }
 
-  const params = farmerId ? `?farmer_id=${farmerId}` : '';
-  const res = await apiCall(`/api/v1/lots${params}`);
+  const limit = options.limit || 100;
+  const page = options.page || 1;
+  const queryParams = new URLSearchParams();
+  if (farmerId) queryParams.append('farmer_id', farmerId);
+  queryParams.append('limit', String(limit));
+  queryParams.append('page', String(page));
+
+  const res = await apiCall(`/api/v1/lots?${queryParams.toString()}`);
   if (res && res.success && res.data) {
     const items = Array.isArray(res.data) ? res.data : (res.data.items || []);
-    return { success: true, data: items, provenance: 'live' };
+    return { success: true, data: items, total: res.data.total, pages: res.data.pages, provenance: 'live' };
   }
 
   return { success: false, error: res?.error || 'Failed to fetch produce listings', data: [] };
@@ -362,11 +368,12 @@ export async function getOffers(params = {}) {
     return { success: true, data: DEMO_OFFERS, provenance: 'demo' };
   }
 
-  const query = new URLSearchParams(params).toString();
+  const mergedParams = { limit: '100', page: '1', ...params };
+  const query = new URLSearchParams(mergedParams).toString();
   const res = await apiCall(`/api/v1/offers${query ? `?${query}` : ''}`);
   if (res && res.success && res.data) {
     const items = Array.isArray(res.data) ? res.data : (res.data.items || []);
-    return { success: true, data: items, provenance: 'live' };
+    return { success: true, data: items, total: res.data.total, pages: res.data.pages, provenance: 'live' };
   }
 
   return { success: false, error: res?.error || 'Failed to load offers', data: [] };

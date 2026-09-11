@@ -158,7 +158,7 @@ def list_offers(
     lot_id: str | None = None,
     status: str | None = None,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100),
     user: User = Depends(get_current_user),
 ):
     q = db.query(Offer)
@@ -177,19 +177,38 @@ def list_offers(
         q = q.filter(Offer.buyer_id == user.id)
 
     total = q.count()
-    items = q.order_by(Offer.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
-    data = [
-        {
-            "id": str(o.id),
-            "lot_id": str(o.lot_id),
-            "buyer_id": str(o.buyer_id),
-            "quantity": float(o.quantity),
-            "price_per_unit": float(o.price_per_unit),
-            "status": o.status,
-            "created_at": o.created_at.isoformat() if o.created_at else None,
-        }
-        for o in items
-    ]
+    items = q.order_by(Offer.created_at.desc(), Offer.id.desc()).offset((page - 1) * limit).limit(limit).all()
+
+    lot_ids = [o.lot_id for o in items if o.lot_id]
+    user_ids = list({o.buyer_id for o in items if o.buyer_id} | {o.owner_id for o in items if o.owner_id})
+    lots_map = {l.id: l for l in db.query(Lot).filter(Lot.id.in_(lot_ids)).all()} if lot_ids else {}
+    users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
+    data = []
+    for o in items:
+        lot = lots_map.get(o.lot_id)
+        buyer = users_map.get(o.buyer_id)
+        owner = users_map.get(o.owner_id)
+        data.append(
+            {
+                "id": str(o.id),
+                "lot_id": str(o.lot_id),
+                "buyer_id": str(o.buyer_id),
+                "owner_id": str(o.owner_id),
+                "quantity": float(o.quantity),
+                "price_per_unit": float(o.price_per_unit),
+                "total_value": float(o.total_value) if o.total_value else float(o.quantity * o.price_per_unit),
+                "status": o.status,
+                "message": o.message,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "crop_name": lot.crop_name if lot else "Produce",
+                "crop": lot.crop_name if lot else "Produce",
+                "lot_public_id": lot.public_id if lot else None,
+                "buyer_name": buyer.full_name if buyer else "Buyer",
+                "farmer_name": owner.full_name if owner else "Farmer",
+                "location": (lot.district or lot.location_text) if lot else None,
+            }
+        )
     return {
         "success": True,
         "data": {"items": data, "total": total, "page": page, "limit": limit, "pages": (total + limit - 1) // limit},

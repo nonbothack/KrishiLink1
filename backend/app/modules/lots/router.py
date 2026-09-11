@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -46,6 +46,7 @@ def create_lot(
     crop = db.query(Crop).filter(Crop.name.ilike(data.crop)).first()
     if not crop:
         raise HTTPException(status_code=404, detail="Crop not found")
+    now_utc = datetime.now(timezone.utc)
     lot = Lot(
         id=uuid.uuid4(),
         public_id=gen_public_id(db),
@@ -63,6 +64,8 @@ def create_lot(
         available_from=data.available_from or date.today(),
         available_until=data.available_until or (date.today() + timedelta(days=14)),
         status="PUBLISHED",
+        created_at=now_utc,
+        updated_at=now_utc,
     )
     db.add(lot)
     db.commit()
@@ -82,6 +85,7 @@ def create_lot(
             "location_text": lot.location_text,
             "district": lot.district,
             "status": lot.status,
+            "created_at": lot.created_at.isoformat() if lot.created_at else None,
         },
         "message": "Lot created",
         "request_id": getattr(request.state, "request_id", None),
@@ -97,14 +101,14 @@ def list_lots(
     status: str | None = None,
     crop: str | None = None,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100),
 ):
     q = db.query(Lot).filter(Lot.deleted_at.is_(None))
     if status:
         q = q.filter(Lot.status == status)
     if crop:
         q = q.filter(Lot.crop_name.ilike(crop))
-    q = q.order_by(Lot.created_at.desc())
+    q = q.order_by(Lot.created_at.desc().nullslast(), Lot.id.desc())
     total = q.count()
     items = q.offset((page - 1) * limit).limit(limit).all()
     data = [
@@ -113,11 +117,14 @@ def list_lots(
             "public_id": l.public_id,
             "crop": l.crop_name,
             "quantity": float(l.quantity),
+            "unit": l.unit or "quintal",
             "grade": l.grade,
             "status": l.status,
             "location": l.location_text,
             "district": l.district,
             "asking_price": float(l.asking_price) if l.asking_price else None,
+            "expected_price": float(l.asking_price) if l.asking_price else None,
+            "created_at": l.created_at.isoformat() if l.created_at else None,
         }
         for l in items
     ]

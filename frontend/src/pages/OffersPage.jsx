@@ -4,11 +4,14 @@ import { IndianRupee, CheckCircle2, XCircle, Eye, Clock } from 'lucide-react';
 import { getOffers, acceptOffer, rejectOffer } from '../services/api';
 import { StatusBadge } from '../components/Badges';
 import { LoadingState, EmptyState } from '../components/States';
+import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { ToastContainer } from '../components/ui/Toast';
 
 export default function OffersPage() {
+  const { user } = useAuth();
   const { t, cropT } = useLanguage();
+  const isBuyer = user?.role === 'buyer';
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -81,9 +84,24 @@ export default function OffersPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('offers') || 'Offers'} &amp; Negotiations</h1>
-        <p className="text-gray-500 text-sm mt-1">Review incoming buyer offers and manage negotiations</p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isBuyer ? (t('myOffers') || 'My Offers & Proposals') : (t('offers') || 'Offers & Negotiations')}
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {isBuyer
+              ? 'Track proposals and offers you sent to farmers'
+              : 'Review incoming buyer offers and manage negotiations'}
+          </p>
+        </div>
+        <button
+          onClick={loadOffers}
+          disabled={loading}
+          className="btn-secondary btn-sm"
+        >
+          {loading ? 'Refreshing...' : 'Refresh Offers'}
+        </button>
       </div>
 
       {error && (
@@ -118,9 +136,23 @@ export default function OffersPage() {
         <LoadingState />
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="No offers in this category"
-          description="When buyers make offers on your listings, they will appear here."
-          action={<Link to="/sell" className="btn-primary btn-sm">{t('createListing') || 'Create a Listing'}</Link>}
+          title={isBuyer ? 'No offers placed yet' : 'No offers in this category'}
+          description={
+            isBuyer
+              ? 'Browse produce in the Marketplace and click "Make Offer" to start negotiating with farmers.'
+              : 'When buyers make offers on your listings, they will appear here.'
+          }
+          action={
+            isBuyer ? (
+              <Link to="/buyer/dashboard" className="btn-primary btn-sm">
+                {t('browseMarketplace') || 'Explore Marketplace'}
+              </Link>
+            ) : (
+              <Link to="/sell" className="btn-primary btn-sm">
+                {t('createListing') || 'Create a Listing'}
+              </Link>
+            )
+          }
         />
       ) : (
         <div className="space-y-4">
@@ -135,11 +167,16 @@ export default function OffersPage() {
                   {/* Left: Offer details */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <h3 className="font-bold text-gray-900">{offer.buyer_name || offer.buyer || 'Buyer Offer'}</h3>
+                      <h3 className="font-bold text-gray-900">
+                        {isBuyer
+                          ? `Offer to: ${offer.farmer_name || 'Farmer'}${offer.lot_public_id ? ` · Lot ${offer.lot_public_id}` : ''}`
+                          : `Offer from: ${offer.buyer_name || 'Buyer'}${offer.lot_public_id ? ` · Lot ${offer.lot_public_id}` : ''}`}
+                      </h3>
                       <StatusBadge status={offer.status} />
                     </div>
                     <p className="text-sm text-gray-600">
                       {cropT(offer.crop_name || offer.crop) || 'Produce'} · {offer.quantity} {t('quintal') || 'quintals'}
+                      {offer.location ? ` · ${offer.location}` : ''}
                     </p>
 
                     {/* Price breakdown */}
@@ -158,13 +195,14 @@ export default function OffersPage() {
 
                     <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-2">
                       <Clock className="w-3.5 h-3.5" />
-                      Received {offer.created_at ? new Date(offer.created_at).toLocaleDateString('en-IN') : 'recently'}
+                      {isBuyer ? 'Sent ' : 'Received '}
+                      {offer.created_at ? new Date(offer.created_at).toLocaleDateString('en-IN') : 'recently'}
                       {offer.expires_at && ` · Expires ${new Date(offer.expires_at).toLocaleDateString('en-IN')}`}
                     </div>
                   </div>
 
                   {/* Right: Actions */}
-                  {status === 'pending' && (
+                  {status === 'pending' && !isBuyer && (
                     <div className="flex flex-col gap-2 min-w-fit">
                       <button
                         onClick={() => handleAccept(offer.id)}
@@ -182,6 +220,15 @@ export default function OffersPage() {
                         <XCircle className="w-4 h-4" />
                         {t('reject') || 'Decline'}
                       </button>
+                    </div>
+                  )}
+
+                  {status === 'pending' && isBuyer && (
+                    <div className="min-w-fit">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+                        <Clock className="w-3.5 h-3.5" />
+                        Awaiting Farmer Response
+                      </span>
                     </div>
                   )}
 
