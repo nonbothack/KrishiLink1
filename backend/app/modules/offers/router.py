@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -9,8 +9,9 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.idempotency import check_idempotency, save_idempotency
 from app.core.rate_limit import rate_limit
-from app.models import AuditLog, Lot, Offer, OutboxEvent, Reservation, User
+from app.models import AuditLog, Lot, Offer, OutboxEvent, Reservation, Transaction, User
 from app.modules.notifications.service import NotificationService
+from app.modules.notifications.sms_service import SMSService
 
 router = APIRouter(prefix="/offers", tags=["offers"])
 
@@ -256,7 +257,11 @@ def counter_offer(
 
 @router.post("/{offer_id}/accept", response_model=dict)
 def accept_offer(
-    offer_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    offer_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     cached = check_idempotency(request, db)
     if cached:
@@ -294,6 +299,21 @@ def accept_offer(
         expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
     )
     db.add(res)
+
+    # Automatically initialize Transaction so deal is active on both sides immediately
+    gross_val = round(float(o.quantity) * float(o.price_per_unit), 2)
+    txn = Transaction(
+        id=uuid.uuid4(),
+        lot_id=lot.id,
+        buyer_id=o.buyer_id,
+        seller_id=lot.owner_id,
+        allocation_id=res.id,
+        offer_id=o.id,
+        status="CREATED",
+        gross_value=gross_val,
+    )
+    db.add(txn)
+
     rid = getattr(request.state, "request_id", str(uuid.uuid4()))
     db.add(
         AuditLog(
@@ -301,7 +321,7 @@ def accept_offer(
             action="offer.accept",
             entity="offers",
             entity_id=str(o.id),
-            after={"status": "ACCEPTED"},
+            after={"status": "ACCEPTED", "transaction_id": str(txn.id)},
             request_id=rid,
         )
     )
@@ -310,7 +330,15 @@ def accept_offer(
             aggregate="offers",
             aggregate_id=str(o.id),
             event_type="offer.accepted",
-            payload={"offer_id": str(o.id), "lot_id": str(lot.id)},
+            payload={"offer_id": str(o.id), "lot_id": str(lot.id), "transaction_id": str(txn.id)},
+        )
+    )
+    db.add(
+        OutboxEvent(
+            aggregate="transactions",
+            aggregate_id=str(txn.id),
+            event_type="transaction.created",
+            payload={"transaction_id": str(txn.id)},
         )
     )
 
@@ -320,16 +348,53 @@ def accept_offer(
         user_id=o.buyer_id,
         type_="offer_accepted",
         title="Offer Accepted! 🎉",
-        message=f"Your offer for {lot.crop_name} ({o.quantity} qtl at ₹{o.price_per_unit:,.0f}/qtl) was accepted. A 48-hour reservation has been created.",
+        message=f"Your offer for {lot.crop_name} ({o.quantity} qtl at ₹{o.price_per_unit:,.0f}/qtl) was accepted. Order #{str(txn.id)[:8]} created.",
         related_id=o.id,
         outbox=True,
     )
 
+    seller = db.get(User, lot.owner_id)
+    if seller:
+        db.add(
+            OutboxEvent(
+                aggregate="deals",
+                aggregate_id=str(txn.id),
+                event_type="deal.confirmed.sms",
+                payload={
+                    "transaction_id": str(txn.id),
+                    "order_id": str(txn.id)[:8],
+                    "farmer_phone": seller.phone,
+                    "farmer_name": seller.full_name,
+                    "crop_name": lot.crop_name,
+                    "quantity": float(o.quantity),
+                    "price_per_unit": float(o.price_per_unit),
+                },
+            )
+        )
+
     db.commit()
+
+    # Asynchronous background SMS dispatch via FastAPI BackgroundTasks
+    if seller and seller.phone:
+        background_tasks.add_task(
+            SMSService.send_deal_confirmation,
+            farmer_phone=seller.phone,
+            farmer_name=seller.full_name or "Farmer",
+            crop_name=lot.crop_name,
+            quantity=float(o.quantity),
+            price_per_unit=float(o.price_per_unit),
+            order_id=str(txn.id)[:8],
+        )
+
     body = {
         "success": True,
-        "data": {"id": str(o.id), "status": o.status, "reservation_id": str(res.id)},
-        "message": "Offer accepted",
+        "data": {
+            "id": str(o.id),
+            "status": o.status,
+            "reservation_id": str(res.id),
+            "transaction_id": str(txn.id),
+        },
+        "message": "Offer accepted and order created",
         "request_id": rid,
     }
     save_idempotency(request, db, 200, body)

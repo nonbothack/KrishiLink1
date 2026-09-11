@@ -76,14 +76,36 @@ def create_transaction(
     res = db.get(Reservation, data.reservation_id)
     if not res:
         raise HTTPException(status_code=404, detail="Reservation not found")
-    if res.status != "ACTIVE":
-        raise HTTPException(status_code=409, detail="Reservation not active or already consumed")
 
     # Authorize: user must be the reservation's buyer or an admin
     if user.role.lower() not in ("admin", "operator") and str(res.buyer_id) != str(user.id):
         raise HTTPException(
             status_code=403, detail="Forbidden: You cannot create a transaction for another user's reservation"
         )
+
+    # Check if transaction was already initialized when accepting the offer
+    existing_txn = db.query(Transaction).filter(
+        (Transaction.allocation_id == res.id) | (Transaction.offer_id == res.offer_id)
+    ).first()
+    if existing_txn:
+        res.status = "CONSUMED"
+        db.commit()
+        body = {
+            "success": True,
+            "data": {
+                "id": str(existing_txn.id),
+                "status": existing_txn.status,
+                "lot_id": str(existing_txn.lot_id),
+                "gross_value": float(existing_txn.gross_value) if existing_txn.gross_value else 0.0,
+            },
+            "message": "Transaction created",
+            "request_id": getattr(request.state, "request_id", str(uuid.uuid4())),
+        }
+        save_idempotency(request, db, 201, body)
+        return body
+
+    if res.status != "ACTIVE":
+        raise HTTPException(status_code=409, detail="Reservation not active or already consumed")
 
     lot = db.get(Lot, res.lot_id)
     offer = db.get(Offer, res.offer_id) if res.offer_id else None
@@ -205,10 +227,14 @@ def list_txns(
         q = q.filter(Transaction.buyer_id == user.id)
     total = q.count()
     items = q.order_by(Transaction.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+    lot_ids = [t.lot_id for t in items if t.lot_id]
+    lots_map = {l.id: l for l in db.query(Lot).filter(Lot.id.in_(lot_ids)).all()} if lot_ids else {}
+
     data = [
         {
             "id": str(t.id),
             "lot_id": str(t.lot_id),
+            "crop_name": lots_map[t.lot_id].crop_name if t.lot_id in lots_map else "Produce",
             "status": t.status,
             "gross_value": float(t.gross_value) if t.gross_value else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
@@ -230,11 +256,13 @@ def get_txn(txn_id: str, request: Request, db: Session = Depends(get_db), user: 
         raise HTTPException(status_code=404, detail="Transaction not found")
     if user.role.lower() not in ("admin", "operator") and user.id not in (t.buyer_id, t.seller_id):
         raise HTTPException(status_code=403, detail="Forbidden: You are not authorized to view this transaction")
+    lot = db.get(Lot, t.lot_id) if t.lot_id else None
     return {
         "success": True,
         "data": {
             "id": str(t.id),
             "lot_id": str(t.lot_id),
+            "crop_name": lot.crop_name if lot else "Produce",
             "buyer_id": str(t.buyer_id),
             "seller_id": str(t.seller_id),
             "status": t.status,

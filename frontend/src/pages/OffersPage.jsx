@@ -43,6 +43,7 @@ export default function OffersPage() {
     const res = await acceptOffer(id);
     if (res && res.success) {
       setOffers(prev => prev.map(o => o.id === id ? { ...o, status: 'ACCEPTED' } : o));
+      addToast('Offer accepted! Deal order created and SMS confirmation sent.', 'success');
     } else {
       addToast(res?.error || 'Failed to accept offer', 'error');
     }
