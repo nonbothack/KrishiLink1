@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
 
   // Real login: calls FastAPI /api/v1/auth/login, stores JWT tokens
   const login = async (email, password) => {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+    const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -95,7 +95,7 @@ export function AuthProvider({ children }) {
 
   // Real register: calls FastAPI /api/v1/auth/register, stores JWT tokens
   const register = async (userData) => {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+    const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);

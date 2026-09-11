@@ -78,7 +78,7 @@ export const CROPS_METADATA = [
   {
     id: 'soyabean',
     name: 'Soyabean',
-    localImage: '/images/crop-soybean.svg',
+    localImage: '/images/crop-soybean.jpg',
     unit: 'quintal',
     defaultGrade: 'Grade A',
     typicalPriceRange: [4100, 4800],
@@ -92,7 +92,7 @@ export const CROPS_METADATA = [
   {
     id: 'cotton',
     name: 'Cotton',
-    localImage: '/images/crop-cotton.svg',
+    localImage: '/images/crop-cotton.jpg',
     unit: 'quintal',
     defaultGrade: 'Medium Staple',
     typicalPriceRange: [6500, 7800],
@@ -120,7 +120,7 @@ export const CROPS_METADATA = [
   {
     id: 'chilli',
     name: 'Chilli',
-    localImage: '/images/crop-chilli.svg',
+    localImage: '/images/crop-chilli.jpg',
     unit: 'quintal',
     defaultGrade: 'Grade A Red',
     typicalPriceRange: [12000, 18000],
@@ -138,8 +138,8 @@ export const CROP_IMAGES = CROPS_METADATA.reduce((acc, crop) => {
   acc[crop.name] = crop.localImage;
   return acc;
 }, {
-  Soybean: '/images/crop-soybean.svg',
-  Soyabean: '/images/crop-soybean.svg',
+  Soybean: '/images/crop-soybean.jpg',
+  Soyabean: '/images/crop-soybean.jpg',
 });
 
 /**
