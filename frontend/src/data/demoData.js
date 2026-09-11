@@ -79,12 +79,17 @@ TARGET_CROPS_LIST.forEach(crop => {
   TARGET_MARKETS_LIST.forEach(market => {
     const factor = MARKET_FACTORS[market] || 1.0;
     const targetPrice = Math.round(baseRate * factor);
+    let prevModal = null;
     DEMO_PRICE_HISTORY[crop][market] = Array.from({ length: 15 }, (_, i) => {
       const daysFromToday = 14 - i;
-      const charSeed = ((crop.charCodeAt(0) * 31 + market.charCodeAt(0) * 17 + i * 13) % 16) - 8;
-      const jitter = charSeed / 1000.0;
-      const trend = daysFromToday > 0 ? (1.0 - (daysFromToday * 0.003) + jitter) : 1.0;
-      const modal = Math.round(targetPrice * trend);
+      const h = Math.abs(Math.sin(crop.length * 37 + market.length * 19 + (i + 1) * 73.13)) * 10000;
+      const jitter = ((h % 41) - 20) / 1000.0;
+      const trend = daysFromToday > 0 ? (1.0 - (daysFromToday * 0.0025) + jitter) : 1.0;
+      let modal = Math.round(targetPrice * trend);
+      if (daysFromToday > 0 && prevModal !== null && modal === prevModal) {
+        modal += (i % 2 === 0 ? 18 : -18);
+      }
+      prevModal = modal;
       return {
         date: daysAgo(daysFromToday),
         price: modal,
@@ -94,6 +99,9 @@ TARGET_CROPS_LIST.forEach(crop => {
         market: market === 'All' ? 'All Mandis (Average)' : `${market} APMC`,
       };
     });
+    if (market !== 'All') {
+      DEMO_PRICE_HISTORY[crop][`${market} APMC`] = DEMO_PRICE_HISTORY[crop][market];
+    }
   });
 });
 
