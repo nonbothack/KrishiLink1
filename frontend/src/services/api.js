@@ -290,7 +290,15 @@ export async function createLot(lotData) {
 
   const res = await apiCall('/api/v1/lots', { method: 'POST', body: JSON.stringify(payload) });
   if (res && res.success) {
-    return { ...res, provenance: 'live' };
+    const data = {
+      ...lotData,
+      ...res.data,
+      asking_price: res.data?.asking_price ?? payload.asking_price,
+      expected_price: res.data?.expected_price ?? res.data?.asking_price ?? payload.asking_price,
+      unit: res.data?.unit || payload.unit,
+      location: res.data?.location || res.data?.location_text || payload.location_text,
+    };
+    return { ...res, data, provenance: 'live' };
   }
   return { success: false, error: res?.error || 'Failed to create listing', message: res?.error };
 }

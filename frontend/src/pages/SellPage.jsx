@@ -53,7 +53,13 @@ export default function SellPage() {
     setLoading(false);
 
     if (res.success) {
-      setCreatedLot(res.data);
+      setCreatedLot({
+        ...formData,
+        ...res.data,
+        expected_price: res.data?.expected_price ?? res.data?.asking_price ?? formData.expected_price,
+        unit: res.data?.unit || formData.unit || 'Quintal',
+        location: res.data?.location || res.data?.location_text || formData.location,
+      });
       setSuccess(true);
     } else {
       setError(res.message);
@@ -62,6 +68,7 @@ export default function SellPage() {
 
   // Success screen
   if (success && createdLot) {
+    const displayPrice = createdLot.expected_price || createdLot.asking_price;
     return (
       <div className="max-w-lg mx-auto px-4 py-12">
         <div className="card text-center">
@@ -70,7 +77,7 @@ export default function SellPage() {
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('lotCreated') || 'Lot Created!'}</h2>
           <p className="text-gray-500 mb-6">
-            Your listing for <strong>{createdLot.quantity} {createdLot.unit} of {cropT(createdLot.crop)}</strong> has been created successfully.
+            Your listing for <strong>{createdLot.quantity} {createdLot.unit || 'Quintal'} of {cropT(createdLot.crop)}</strong> has been created successfully.
           </p>
 
           <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left space-y-2 text-sm">
@@ -80,7 +87,7 @@ export default function SellPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">{t('quantity') || 'Quantity'}</span>
-              <span className="font-semibold">{createdLot.quantity} {createdLot.unit}</span>
+              <span className="font-semibold">{createdLot.quantity} {createdLot.unit || 'Quintal'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">{t('grade') || 'Grade'}</span>
@@ -88,11 +95,15 @@ export default function SellPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">{t('price') || 'Expected Price'}</span>
-              <span className="font-semibold text-green-800">₹{parseInt(createdLot.expected_price).toLocaleString('en-IN')}/qtl</span>
+              <span className="font-semibold text-green-800">
+                {displayPrice
+                  ? `₹${Number(displayPrice).toLocaleString('en-IN')}/qtl`
+                  : 'Market Rate'}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">{t('location') || 'Location'}</span>
-              <span className="font-semibold">{createdLot.location}</span>
+              <span className="font-semibold">{createdLot.location || createdLot.location_text || '—'}</span>
             </div>
           </div>
 
