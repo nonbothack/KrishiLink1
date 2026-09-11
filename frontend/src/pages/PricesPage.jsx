@@ -56,7 +56,7 @@ export default function PricesPage() {
       const res = await getLivePrices({
         crop: null,
         market: null,
-        limit: 100,
+        limit: 250,
       });
 
       if (res && res.success && Array.isArray(res.data)) {
@@ -66,7 +66,16 @@ export default function PricesPage() {
           let changePct = p.change_pct != null ? Number(p.change_pct) : null;
 
           const rawCrop = (p.commodity || p.crop || 'Produce').trim();
-          const cleanCrop = rawCrop.toLowerCase() === 'soybean' ? 'Soyabean' : rawCrop;
+          let cleanCrop = rawCrop;
+          const lowerRaw = rawCrop.toLowerCase();
+          if (lowerRaw === 'soybean' || lowerRaw === 'soyabean') cleanCrop = 'Soyabean';
+          else if (lowerRaw.includes('paddy') || lowerRaw === 'rice' || lowerRaw.includes('dhan')) cleanCrop = 'Rice';
+          else if (lowerRaw.includes('chilli') || lowerRaw.includes('chili') || lowerRaw.includes('mirch')) cleanCrop = 'Chilli';
+          else if (lowerRaw.includes('cotton') || lowerRaw.includes('kapas')) cleanCrop = 'Cotton';
+          else if (lowerRaw.includes('wheat') || lowerRaw.includes('gehu') || lowerRaw.includes('gehun')) cleanCrop = 'Wheat';
+          else if (lowerRaw.includes('onion') || lowerRaw.includes('pyaz')) cleanCrop = 'Onion';
+          else if (lowerRaw.includes('potato') || lowerRaw.includes('aloo')) cleanCrop = 'Potato';
+          else if (lowerRaw.includes('tomato') || lowerRaw.includes('tamatar')) cleanCrop = 'Tomato';
           const cropKey = cleanCrop.toLowerCase();
           const modal = Number(p.modal_price) || 0;
           const minP = Number(p.min_price || modal);
@@ -169,7 +178,7 @@ export default function PricesPage() {
         const c = p.crop.toLowerCase().trim();
         if (cf === 'onion') return c.includes('onion') || c.includes('pyaz');
         if (cf === 'tomato') return c.includes('tomato') || c.includes('tamatar');
-        if (cf === 'soyabean' || cf === 'soybean') return c.includes('soyabean') || c.includes('soybean');
+        if (cf === 'soyabean' || cf === 'soybean') return c.includes('soya') || c.includes('soybean');
         if (cf === 'cotton') return c.includes('cotton') || c.includes('kapas');
         if (cf === 'wheat') return c.includes('wheat') || c.includes('gehun') || c.includes('gehu');
         if (cf === 'potato') return c.includes('potato') || c.includes('aloo');

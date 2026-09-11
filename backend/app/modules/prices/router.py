@@ -125,7 +125,7 @@ def live_mandi_prices(
     district: str | None = None,
     state: str | None = None,
     date: str | None = None,
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(250, ge=1, le=300),
     offset: int = Query(0, ge=0),
 ):
     """

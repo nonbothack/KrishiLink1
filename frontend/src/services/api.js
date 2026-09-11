@@ -606,7 +606,8 @@ export async function getMarketLocations({ category = 'all', state = null, distr
 // 14. Live Government Mandi Prices
 export async function getLivePrices(arg = {}) {
   const opts = typeof arg === 'number' ? { limit: arg } : (arg || {});
-  const { crop = null, market = null, district = null, state = null, limit = 50, offset = 0 } = opts;
+  const defaultLimit = (opts.crop && opts.crop !== 'All') ? 50 : 250;
+  const { crop = null, market = null, district = null, state = null, limit = defaultLimit, offset = 0 } = opts;
   const params = new URLSearchParams();
   if (crop && crop !== 'All') params.append('crop', crop);
   if (market && market !== 'All') params.append('market', market);
@@ -620,6 +621,22 @@ export async function getLivePrices(arg = {}) {
     crop: p.crop || p.commodity || 'Produce',
     commodity: p.commodity || p.crop || 'Produce',
   }));
+
+  const matchesCrop = (item, targetCrop) => {
+    if (!targetCrop || targetCrop === 'All') return true;
+    const cTarget = targetCrop.toLowerCase().trim();
+    const rawC = (item.commodity || item.crop || '').toLowerCase().trim();
+    if (cTarget === 'soyabean' || cTarget === 'soybean') {
+      return rawC.includes('soya') || rawC.includes('soybean');
+    }
+    if (cTarget === 'chilli' || cTarget === 'chili') {
+      return rawC.includes('chilli') || rawC.includes('chili');
+    }
+    if (cTarget === 'rice') {
+      return rawC.includes('rice') || rawC.includes('paddy');
+    }
+    return rawC.includes(cTarget) || cTarget.includes(rawC);
+  };
 
   // 1. Primary: Query FastAPI backend /api/v1/prices/live
   try {
@@ -639,8 +656,7 @@ export async function getLivePrices(arg = {}) {
       if (pubJson && Array.isArray(pubJson.data) && pubJson.data.length > 0) {
         let items = pubJson.data;
         if (crop && crop !== 'All') {
-          const cTarget = crop.toLowerCase().replace(/soyabean/i, 'soybean');
-          items = items.filter(p => (p.commodity || p.crop || '').toLowerCase().replace(/soyabean/i, 'soybean') === cTarget);
+          items = items.filter(p => matchesCrop(p, crop));
         }
         if (market && market !== 'All') {
           items = items.filter(p => (p.market || '').toLowerCase().includes(market.toLowerCase()));
@@ -661,11 +677,10 @@ export async function getLivePrices(arg = {}) {
     // ignore
   }
 
-  // 3. Tertiary: Authentic in-memory LIVE_GOVERNMENT_PRICES (810 real arrivals from data.gov.in)
+  // 3. Tertiary: Authentic in-memory LIVE_GOVERNMENT_PRICES (250+ real arrivals with >= 20 of each crop)
   let items = [...LIVE_GOVERNMENT_PRICES];
   if (crop && crop !== 'All') {
-    const cTarget = crop.toLowerCase().replace(/soyabean/i, 'soybean');
-    items = items.filter(p => (p.commodity || p.crop || '').toLowerCase().replace(/soyabean/i, 'soybean') === cTarget);
+    items = items.filter(p => matchesCrop(p, crop));
   }
   if (market && market !== 'All') {
     items = items.filter(p => (p.market || '').toLowerCase().includes(market.toLowerCase()));

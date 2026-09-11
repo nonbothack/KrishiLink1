@@ -101,7 +101,7 @@ export default function FarmerDashboard() {
           storageRes,
           notifRes,
         ] = await Promise.all([
-          getLivePrices({ limit: 100 }),
+          getLivePrices({ limit: 250 }),
           getTrend(selectedCrop, targetMarket),
           getPriceHistory(selectedCrop, targetMarket, 15),
           getFarmerDashboardSummary(),
@@ -374,7 +374,8 @@ export default function FarmerDashboard() {
             <div>
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Market Price</p>
               {prices.length > 0 ? (() => {
-                const best = prices.filter(p => p.crop === selectedCrop).sort((a, b) => (b.modal_price || 0) - (a.modal_price || 0))[0];
+                const norm = (c) => (c || '').toLowerCase().replace(/soyabean/i, 'soybean');
+                const best = prices.filter(p => norm(p.crop) === norm(selectedCrop)).sort((a, b) => (b.modal_price || 0) - (a.modal_price || 0))[0];
                 return best ? (
                   <>
                     <p className="text-2xl font-black text-gray-900 mt-0.5">₹{Number(best.modal_price).toLocaleString('en-IN')}</p>
