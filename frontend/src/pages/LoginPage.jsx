@@ -1,16 +1,16 @@
 // =============================================================
 // Login Page
-// Has demo login buttons + real login form
+// Real login form for authenticated access
 // =============================================================
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sprout, Tractor, ShoppingBag, Building2, Eye, EyeOff } from 'lucide-react';
+import { Sprout, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 
 export default function LoginPage() {
-  const { login, demoLogin } = useAuth();
+  const { login } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -18,13 +18,6 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const handleDemoLogin = (role) => {
-    demoLogin(role);
-    if (role === 'farmer') navigate('/farmer/dashboard');
-    else if (role === 'buyer') navigate('/buyer/dashboard');
-    else if (role === 'fpo') navigate('/fpo/dashboard');
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -56,56 +49,6 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">{t('welcomeBack') || 'Welcome back'}</h1>
           <p className="text-gray-500 text-sm mt-1">{t('loginToYourAccount') || 'Login to your account'}</p>
-        </div>
-
-        {/* Demo Login Box */}
-        <div className="card mb-6 border-2 border-amber-200 bg-amber-50">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="badge-yellow">{t('demoMode')}</span>
-            <p className="text-sm text-amber-700">{t('tryWithoutAccount') || 'Try without creating an account'}</p>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <button
-              onClick={() => handleDemoLogin('farmer')}
-              className="flex items-center gap-3 w-full bg-green-800 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition-all"
-            >
-              <Tractor className="w-5 h-5" />
-              <div className="text-left">
-                <div className="text-sm">{t('continueAsFarmer')}</div>
-                <div className="text-green-200 text-xs">Ramesh Patil, Lasalgaon</div>
-              </div>
-            </button>
-            <button
-              onClick={() => handleDemoLogin('buyer')}
-              className="flex items-center gap-3 w-full bg-blue-700 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl transition-all"
-            >
-              <ShoppingBag className="w-5 h-5" />
-              <div className="text-left">
-                <div className="text-sm">{t('continueAsBuyer')}</div>
-                <div className="text-blue-200 text-xs">Mehta Traders, Nashik</div>
-              </div>
-            </button>
-            <button
-              onClick={() => handleDemoLogin('fpo')}
-              className="flex items-center gap-3 w-full bg-purple-700 hover:bg-purple-600 text-white font-semibold py-3 px-4 rounded-xl transition-all"
-            >
-              <Building2 className="w-5 h-5" />
-              <div className="text-left">
-                <div className="text-sm">{t('continueAsFPO')}</div>
-                <div className="text-purple-200 text-xs">Nashik Farmer Collective FPO</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200" />
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-[#FAFAF7] px-4 text-sm text-gray-400">{t('orLoginWithAccount') || 'or login with account'}</span>
-          </div>
         </div>
 
         {/* Real login form */}

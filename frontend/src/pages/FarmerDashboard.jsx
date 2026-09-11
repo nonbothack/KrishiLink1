@@ -27,7 +27,7 @@ import {
   getNotifications,
 } from '../services/api';
 import { LIVE_GOVERNMENT_PRICES } from '../data/liveMandiData';
-import { DEMO_PRICES, DEMO_PRICE_HISTORY, DEMO_BUYERS, DEMO_STORAGE } from '../data/demoData';
+import { DEMO_PRICE_HISTORY, DEMO_BUYERS, DEMO_STORAGE } from '../data/demoData';
 import { TrendBadge, VerifiedBadge } from '../components/Badges';
 import { LoadingState } from '../components/States';
 import { NextActionCard } from '../components/ui/NextActionCard';
