@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,7 @@ from app.core.idempotency import check_idempotency, save_idempotency
 from app.core.rate_limit import rate_limit
 from app.models import AuditLog, Lot, Offer, OutboxEvent, Reservation, Transaction, User
 from app.modules.notifications.service import NotificationService
+from app.modules.notifications.sms_service import SMSService
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -51,7 +52,11 @@ class TransitionRequest(BaseModel):
 @router.post("", response_model=dict, status_code=201)
 @rate_limit(max_requests=20, window_seconds=60, key_prefix="rl_txn")
 def create_transaction(
-    data: CreateTxnRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    data: CreateTxnRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     cached = check_idempotency(request, db)
     if cached:
@@ -124,6 +129,7 @@ def create_transaction(
     )
 
     # Notify seller (farmer) of new transaction
+    seller = None
     if lot:
         NotificationService.create_notification(
             db=db,
@@ -156,6 +162,19 @@ def create_transaction(
 
     db.commit()
     db.refresh(txn)
+
+    # Asynchronous background SMS dispatch via native FastAPI BackgroundTasks
+    # Runs directly inside the web service on Render without needing separate Celery workers or Redis
+    if lot and seller and seller.phone:
+        background_tasks.add_task(
+            SMSService.send_deal_confirmation,
+            farmer_phone=seller.phone,
+            farmer_name=seller.full_name or "Farmer",
+            crop_name=lot.crop_name,
+            quantity=float(res.quantity),
+            price_per_unit=float(offer.price_per_unit if offer and offer.price_per_unit is not None else (lot.asking_price or 0)),
+            order_id=str(txn.id)[:8],
+        )
     body = {
         "success": True,
         "data": {

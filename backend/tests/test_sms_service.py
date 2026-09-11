@@ -1,8 +1,5 @@
 from unittest.mock import MagicMock, patch
 
-import httpx
-import pytest
-
 from app.core.config import settings
 from app.modules.notifications.sms_service import SMSService, normalize_indian_phone
 from app.workers.celery_app import dispatch_deal_confirmation_sms
@@ -131,3 +128,51 @@ def test_celery_dispatch_deal_confirmation_sms_task():
         res = dispatch_deal_confirmation_sms(payload)
         assert res["success"] is True
         assert res["status"] == "DEMO"
+
+
+def test_sms_service_send_raw_sms():
+    # Demo mode test
+    with patch.object(settings, "sms_enabled", False):
+        res = SMSService.send_raw_sms("9820019061", "Live test from KrishiLink")
+        assert res["success"] is True
+        assert res["status"] == "DEMO"
+        assert res["phone"] == "+919820019061"
+
+    # Invalid phone test
+    res = SMSService.send_raw_sms("123", "Invalid number")
+    assert res["success"] is False
+    assert res["status"] == "SKIPPED"
+
+    # Fast2SMS mock test
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"return": True, "request_id": "req_raw_999"}
+
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "fast2sms"), \
+         patch.object(settings, "fast2sms_api_key", "valid_api_key"), \
+         patch("httpx.Client.post", return_value=mock_resp):
+        res = SMSService.send_raw_sms("+919820019061", "Quick SMS Test")
+        assert res["success"] is True
+        assert res["status"] == "SENT"
+        assert res["request_id"] == "req_raw_999"
+
+
+def test_notifications_test_sms_endpoint(client):
+    login_resp = client.post("/api/v1/auth/login", json={"email": "ramesh@demo.com", "password": "demo123!"})
+    token = login_resp.json()["data"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with patch.object(settings, "sms_enabled", False):
+        resp = client.post(
+            "/api/v1/notifications/test-sms",
+            json={"phone": "9820019061", "message": "KrishiLink SIH demo test"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["data"]["status"] == "DEMO"
+        assert body["data"]["provider"] == "demo"
+
+

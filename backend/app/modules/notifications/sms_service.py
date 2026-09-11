@@ -123,6 +123,45 @@ class SMSService:
         }
 
     @classmethod
+    def send_raw_sms(cls, phone: str | None, message: str) -> dict[str, Any]:
+        """
+        Send an arbitrary SMS message directly to an Indian phone number.
+        """
+        phone_info = normalize_indian_phone(phone)
+        if not phone_info:
+            logger.info("SMS skipped: missing or invalid phone number '%s'", phone)
+            return {
+                "success": False,
+                "status": "SKIPPED",
+                "detail": f"Missing or invalid Indian phone number: {phone}",
+            }
+
+        if not settings.sms_enabled or settings.sms_provider.lower() in ("demo", "mock"):
+            logger.info("[SMS DEMO MODE] TO: %s | MSG: %s", phone_info["e164"], message)
+            return {
+                "success": True,
+                "status": "DEMO",
+                "provider": "demo",
+                "phone": phone_info["e164"],
+                "message": message,
+                "detail": "SMS simulated in demo mode (no carrier charges)",
+            }
+
+        provider = settings.sms_provider.lower()
+        if provider == "fast2sms":
+            return cls._send_fast2sms(
+                phone_10_digit=phone_info["national"],
+                message=message,
+            )
+
+        return {
+            "success": False,
+            "status": "FAILED",
+            "provider": provider,
+            "detail": f"Direct custom message not supported for provider: {provider}",
+        }
+
+    @classmethod
     def _send_fast2sms(cls, phone_10_digit: str, message: str) -> dict[str, Any]:
         """
         Dispatches SMS via Fast2SMS Quick SMS route (route=q).

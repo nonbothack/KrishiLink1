@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import Notification, OutboxEvent
+from app.modules.notifications.sms_service import SMSService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -91,3 +93,41 @@ def mark_all_read(request: Request, db: Session = Depends(get_db), user=Depends(
         "message": "All notifications marked as read",
         "request_id": getattr(request.state, "request_id", None),
     }
+
+
+class TestSMSRequest(BaseModel):
+    phone: str
+    message: str | None = None
+
+
+@router.post("/test-sms", response_model=dict)
+def test_sms(
+    data: TestSMSRequest,
+    request: Request,
+    user=Depends(get_current_user),
+):
+    """
+    Test SMS delivery endpoint for SIH presentation and live sanity check.
+    Allows testing Fast2SMS delivery to any 10-digit Indian phone number directly.
+    """
+    if data.message:
+        result = SMSService.send_raw_sms(
+            phone=data.phone,
+            message=data.message,
+        )
+    else:
+        result = SMSService.send_deal_confirmation(
+            farmer_phone=data.phone,
+            farmer_name=getattr(user, "full_name", None) or "KrishiLink User",
+            crop_name="Organic Wheat",
+            quantity=50.0,
+            price_per_unit=2450.0,
+            order_id="TEST01",
+        )
+    return {
+        "success": result.get("success", False),
+        "data": result,
+        "message": f"SMS dispatch attempt completed: {result.get('status')}",
+        "request_id": getattr(request.state, "request_id", None),
+    }
+
