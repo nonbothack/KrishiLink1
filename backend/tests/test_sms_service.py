@@ -157,6 +157,31 @@ def test_sms_service_send_raw_sms():
         assert res["status"] == "SENT"
         assert res["request_id"] == "req_raw_999"
 
+    # Twilio mock test
+    mock_twilio_resp = MagicMock()
+    mock_twilio_resp.status_code = 201
+    mock_twilio_resp.json.return_value = {"sid": "SM_test_sid_123", "status": "queued"}
+
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "twilio"), \
+         patch.object(settings, "twilio_account_sid", "AC_test_123"), \
+         patch.object(settings, "twilio_auth_token", "auth_tok_456"), \
+         patch.object(settings, "twilio_from_number", "+17372508034"), \
+         patch("httpx.Client.post", return_value=mock_twilio_resp):
+        res = SMSService.send_raw_sms("+919820019061", "Twilio Live Test")
+        assert res["success"] is True
+        assert res["status"] == "SENT"
+        assert res["provider"] == "twilio"
+        assert res["request_id"] == "SM_test_sid_123"
+
+    # Twilio missing credentials
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "twilio"), \
+         patch.object(settings, "twilio_account_sid", None):
+        res = SMSService.send_raw_sms("+919820019061", "Twilio Fail Test")
+        assert res["success"] is False
+        assert res["status"] == "FAILED"
+
 
 def test_notifications_test_sms_endpoint(client):
     login_resp = client.post("/api/v1/auth/login", json={"email": "ramesh@demo.com", "password": "demo123!"})

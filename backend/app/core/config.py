@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     fast2sms_api_key: str | None = Field(default=None)
     msg91_auth_key: str | None = Field(default=None)
     msg91_flow_id: str | None = Field(default=None)
+    twilio_account_sid: str | None = Field(default=None)
+    twilio_auth_token: str | None = Field(default=None)
+    twilio_from_number: str | None = Field(default=None)
 
     mandi_api_key: str | None = Field(default=None)
     agmarknet_api_key: str | None = Field(default=None)

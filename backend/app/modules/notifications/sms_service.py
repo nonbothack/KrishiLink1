@@ -115,6 +115,13 @@ class SMSService:
                 order_id=order_id,
             )
 
+        # 4. Twilio Provider
+        if provider == "twilio":
+            return cls._send_twilio(
+                phone_e164=phone_info["e164"],
+                message=message_text,
+            )
+
         logger.warning("Unknown SMS provider '%s'; skipping delivery", provider)
         return {
             "success": False,
@@ -193,12 +200,91 @@ class SMSService:
                 message=message,
             )
 
+        if provider == "twilio":
+            return cls._send_twilio(
+                phone_e164=phone_info["e164"],
+                message=message,
+            )
+
         return {
             "success": False,
             "status": "FAILED",
             "provider": provider,
             "detail": f"Direct custom message not supported for provider: {provider}",
         }
+
+    @classmethod
+    def _send_twilio(cls, phone_e164: str, message: str) -> dict[str, Any]:
+        """
+        Dispatches SMS via Twilio Messages API.
+        Docs: https://www.twilio.com/docs/sms/api/message-resource
+        """
+        account_sid = settings.twilio_account_sid
+        auth_token = settings.twilio_auth_token
+        from_number = settings.twilio_from_number
+
+        if not account_sid or not auth_token or not from_number:
+            logger.error("Twilio requested but TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_FROM_NUMBER is missing")
+            return {
+                "success": False,
+                "status": "FAILED",
+                "detail": "Twilio credentials missing",
+            }
+
+        endpoint = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid.strip()}/Messages.json"
+        auth = (account_sid.strip(), auth_token.strip())
+        data = {
+            "To": phone_e164,
+            "From": from_number.strip(),
+            "Body": message,
+        }
+
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                res = client.post(endpoint, data=data, auth=auth)
+                status_code = res.status_code
+                try:
+                    resp_json = res.json()
+                except Exception:
+                    resp_json = {"raw": res.text}
+
+                if status_code in (200, 201):
+                    sid = resp_json.get("sid", "")
+                    logger.info("Twilio SMS sent to %s (sid=%s)", phone_e164, sid)
+                    return {
+                        "success": True,
+                        "status": "SENT",
+                        "provider": "twilio",
+                        "request_id": sid,
+                        "detail": f"Twilio SMS accepted (status: {resp_json.get('status')})",
+                    }
+                else:
+                    msg = resp_json.get("message", "Twilio rejected request")
+                    code = resp_json.get("code", status_code)
+                    logger.warning("Twilio delivery failed (HTTP %s, code %s): %s", status_code, code, msg)
+                    return {
+                        "success": False,
+                        "status": "FAILED",
+                        "provider": "twilio",
+                        "status_code": status_code,
+                        "detail": f"Twilio error {code}: {msg}",
+                    }
+        except httpx.TimeoutException:
+            logger.error("Twilio timeout communicating with endpoint")
+            return {
+                "success": False,
+                "status": "FAILED",
+                "provider": "twilio",
+                "detail": "Twilio gateway timeout",
+            }
+        except Exception as exc:
+            logger.exception("Twilio unexpected error: %s", exc)
+            return {
+                "success": False,
+                "status": "FAILED",
+                "provider": "twilio",
+                "detail": str(exc),
+            }
 
     @classmethod
     def _send_fast2sms(cls, phone_10_digit: str, message: str) -> dict[str, Any]:
