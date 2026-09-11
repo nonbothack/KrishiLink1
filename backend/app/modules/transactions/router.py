@@ -85,7 +85,7 @@ def create_transaction(
 
     # Check if transaction was already initialized when accepting the offer
     existing_txn = db.query(Transaction).filter(
-        (Transaction.allocation_id == res.id) | (Transaction.offer_id == res.offer_id)
+        Transaction.offer_id == res.offer_id
     ).first()
     if existing_txn:
         res.status = "CONSUMED"

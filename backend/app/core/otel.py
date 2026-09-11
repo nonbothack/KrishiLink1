@@ -24,8 +24,13 @@ def init_otel(app=None):
     _tracer_provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(_tracer_provider)
 
-    # Console exporter for dev, OTLP for production
-    if settings.env == "production":
+    import os
+    import sys
+
+    # Skip console exporter during pytest runs to avoid writing to closed stdout at exit
+    if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
+        pass
+    elif settings.env == "production":
         try:
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 

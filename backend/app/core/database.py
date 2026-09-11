@@ -154,6 +154,9 @@ except NameError:
 @event.listens_for(Engine, "connect")
 def setup_sqlite_spatial_functions(dbapi_connection, connection_record):
     if isinstance(dbapi_connection, sqlite3.Connection):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON;")
+        cursor.close()
         dbapi_connection.create_function("AsBinary", 1, lambda x: x)
         dbapi_connection.create_function("AsGeoJSON", 1, lambda x: x)
         dbapi_connection.create_function("ST_AsGeoJSON", 1, lambda x: x)

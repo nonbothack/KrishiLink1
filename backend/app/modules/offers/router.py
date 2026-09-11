@@ -340,7 +340,7 @@ def accept_offer(
         lot_id=lot.id,
         buyer_id=o.buyer_id,
         seller_id=lot.owner_id,
-        allocation_id=res.id,
+        allocation_id=None,
         offer_id=o.id,
         status="CREATED",
         gross_value=gross_val,
