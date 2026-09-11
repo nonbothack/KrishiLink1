@@ -405,6 +405,25 @@ def accept_offer(
             )
         )
 
+    buyer = db.get(User, o.buyer_id)
+    if buyer:
+        db.add(
+            OutboxEvent(
+                aggregate="deals",
+                aggregate_id=str(txn.id),
+                event_type="buyer.deal.confirmed.sms",
+                payload={
+                    "transaction_id": str(txn.id),
+                    "order_id": str(txn.id)[:8],
+                    "buyer_phone": buyer.phone,
+                    "buyer_name": buyer.full_name,
+                    "crop_name": lot.crop_name,
+                    "quantity": float(o.quantity),
+                    "price_per_unit": float(o.price_per_unit),
+                },
+            )
+        )
+
     db.commit()
 
     # Asynchronous background SMS dispatch via FastAPI BackgroundTasks
@@ -413,6 +432,16 @@ def accept_offer(
             SMSService.send_deal_confirmation,
             farmer_phone=seller.phone,
             farmer_name=seller.full_name or "Farmer",
+            crop_name=lot.crop_name,
+            quantity=float(o.quantity),
+            price_per_unit=float(o.price_per_unit),
+            order_id=str(txn.id)[:8],
+        )
+    if buyer and buyer.phone:
+        background_tasks.add_task(
+            SMSService.send_buyer_deal_confirmation,
+            buyer_phone=buyer.phone,
+            buyer_name=buyer.full_name or "Buyer",
             crop_name=lot.crop_name,
             quantity=float(o.quantity),
             price_per_unit=float(o.price_per_unit),

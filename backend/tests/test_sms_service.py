@@ -217,4 +217,17 @@ def test_celery_dispatch_offer_received_sms_task():
         assert res["status"] == "DEMO"
 
 
-
+def test_sms_service_send_buyer_deal_confirmation():
+    with patch.object(settings, "sms_enabled", False):
+        res = SMSService.send_buyer_deal_confirmation(
+            buyer_phone="9876543210",
+            buyer_name="Mehta Traders",
+            crop_name="Organic Wheat",
+            quantity=50.0,
+            price_per_unit=2450.0,
+            order_id="TEST01",
+        )
+        assert res["success"] is True
+        assert res["status"] == "DEMO"
+        assert "Mehta Traders" in res["message"]
+        assert "TEST01" in res["message"]
