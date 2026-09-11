@@ -38,7 +38,11 @@ def _ensure_buyer(user: User):
 @router.post("", response_model=dict, status_code=201)
 @rate_limit(max_requests=30, window_seconds=60, key_prefix="rl_offer")
 def create_offer(
-    data: CreateOfferRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    data: CreateOfferRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     _ensure_buyer(user)
     cached = check_idempotency(request, db)
@@ -100,8 +104,37 @@ def create_offer(
         outbox=True,
     )
 
+    farmer = db.get(User, lot_locked.owner_id)
+    if farmer:
+        db.add(
+            OutboxEvent(
+                aggregate="offers",
+                aggregate_id=str(offer.id),
+                event_type="offer.received.sms",
+                payload={
+                    "offer_id": str(offer.id),
+                    "farmer_phone": farmer.phone,
+                    "farmer_name": farmer.full_name,
+                    "crop_name": lot.crop_name,
+                    "quantity": float(data.quantity),
+                    "price_per_unit": float(data.price_per_unit),
+                },
+            )
+        )
+
     db.commit()
     db.refresh(offer)
+
+    # Asynchronous background SMS dispatch to farmer via native FastAPI BackgroundTasks
+    if farmer and farmer.phone:
+        background_tasks.add_task(
+            SMSService.send_offer_received_sms,
+            farmer_phone=farmer.phone,
+            farmer_name=farmer.full_name or "Farmer",
+            crop_name=lot.crop_name,
+            quantity=float(data.quantity),
+            price_per_unit=float(data.price_per_unit),
+        )
     body = {
         "success": True,
         "data": {

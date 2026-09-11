@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from app.core.config import settings
 from app.modules.notifications.sms_service import SMSService, normalize_indian_phone
-from app.workers.celery_app import dispatch_deal_confirmation_sms
+from app.workers.celery_app import dispatch_deal_confirmation_sms, dispatch_offer_received_sms
 
 
 def test_normalize_indian_phone():
@@ -174,5 +174,47 @@ def test_notifications_test_sms_endpoint(client):
         assert body["success"] is True
         assert body["data"]["status"] == "DEMO"
         assert body["data"]["provider"] == "demo"
+
+
+def test_sms_service_send_offer_received_sms():
+    # Demo mode
+    with patch.object(settings, "sms_enabled", False):
+        res = SMSService.send_offer_received_sms(
+            farmer_phone="9820019061",
+            farmer_name="Ramesh Patil",
+            crop_name="Onion",
+            quantity=50,
+            price_per_unit=5800,
+        )
+        assert res["success"] is True
+        assert res["status"] == "DEMO"
+        assert "Namaste Ramesh Patil" in res["message"]
+        assert "50 qtl @ Rs 5,800/qtl" in res["message"]
+
+    # Missing phone
+    res_skip = SMSService.send_offer_received_sms(
+        farmer_phone=None,
+        farmer_name="Ramesh",
+        crop_name="Onion",
+        quantity=50,
+        price_per_unit=5800,
+    )
+    assert res_skip["success"] is False
+    assert res_skip["status"] == "SKIPPED"
+
+
+def test_celery_dispatch_offer_received_sms_task():
+    payload = {
+        "farmer_phone": "9820019061",
+        "farmer_name": "Ramesh",
+        "crop_name": "Soybean",
+        "quantity": 30,
+        "price_per_unit": 4200,
+    }
+    with patch.object(settings, "sms_enabled", False):
+        res = dispatch_offer_received_sms(payload)
+        assert res["success"] is True
+        assert res["status"] == "DEMO"
+
 
 

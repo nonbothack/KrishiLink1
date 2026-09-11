@@ -123,6 +123,25 @@ class SMSService:
         }
 
     @classmethod
+    def send_offer_received_sms(
+        cls,
+        farmer_phone: str | None,
+        farmer_name: str | None,
+        crop_name: str,
+        quantity: float | int,
+        price_per_unit: float | int,
+    ) -> dict[str, Any]:
+        """
+        Send SMS to the farmer when a buyer places a new purchase offer on their produce.
+        """
+        name_display = farmer_name.strip() if farmer_name else "Farmer"
+        message_text = (
+            f"Namaste {name_display}, you received a new offer on KrishiLink for {crop_name}: "
+            f"{quantity} qtl @ Rs {price_per_unit:,.0f}/qtl. Please open KrishiLink app to review & accept."
+        )
+        return cls.send_raw_sms(phone=farmer_phone, message=message_text)
+
+    @classmethod
     def send_raw_sms(cls, phone: str | None, message: str) -> dict[str, Any]:
         """
         Send an arbitrary SMS message directly to an Indian phone number.

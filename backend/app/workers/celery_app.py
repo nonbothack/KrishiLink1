@@ -78,6 +78,26 @@ def dispatch_deal_confirmation_sms(self, payload: dict):
         raise self.retry(exc=exc)
 
 
+@celery_app.task(name="notifications.dispatch_offer_received_sms", bind=True, max_retries=3, default_retry_delay=15)
+def dispatch_offer_received_sms(self, payload: dict):
+    """
+    Asynchronously delivers offer received SMS to the farmer.
+    Safe from transaction rollbacks.
+    """
+    from app.modules.notifications.sms_service import SMSService
+
+    try:
+        return SMSService.send_offer_received_sms(
+            farmer_phone=payload.get("farmer_phone"),
+            farmer_name=payload.get("farmer_name"),
+            crop_name=payload.get("crop_name", "Produce"),
+            quantity=payload.get("quantity", 0),
+            price_per_unit=payload.get("price_per_unit", 0),
+        )
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
 @celery_app.task(name="outbox.process_pending", bind=True, max_retries=3, default_retry_delay=10)
 def process_outbox(self):
     from urllib.parse import urlparse
@@ -133,6 +153,13 @@ def process_outbox(self):
                         dispatch_deal_confirmation_sms.delay(event.payload)
                     except Exception:
                         dispatch_deal_confirmation_sms(event.payload)
+
+                # Dispatch dedicated SMS task if event is offer.received.sms
+                if event.event_type == "offer.received.sms" and isinstance(event.payload, dict):
+                    try:
+                        dispatch_offer_received_sms.delay(event.payload)
+                    except Exception:
+                        dispatch_offer_received_sms(event.payload)
 
                 event.status = "COMPLETED"
                 processed += 1
