@@ -135,6 +135,25 @@ def create_transaction(
             outbox=True,
         )
 
+        seller = db.get(User, lot.owner_id)
+        if seller:
+            db.add(
+                OutboxEvent(
+                    aggregate="deals",
+                    aggregate_id=str(txn.id),
+                    event_type="deal.confirmed.sms",
+                    payload={
+                        "transaction_id": str(txn.id),
+                        "order_id": str(txn.id)[:8],
+                        "farmer_phone": seller.phone,
+                        "farmer_name": seller.full_name,
+                        "crop_name": lot.crop_name,
+                        "quantity": float(res.quantity),
+                        "price_per_unit": float(offer.price_per_unit if offer and offer.price_per_unit is not None else (lot.asking_price or 0)),
+                    },
+                )
+            )
+
     db.commit()
     db.refresh(txn)
     body = {

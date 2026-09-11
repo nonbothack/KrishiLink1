@@ -38,6 +38,13 @@ class Settings(BaseSettings):
 
     payment_provider: str = Field(default="mock")
 
+    sms_enabled: bool = Field(default=False)
+    sms_provider: str = Field(default="fast2sms")
+    sms_default_country_code: str = Field(default="+91")
+    fast2sms_api_key: str | None = Field(default=None)
+    msg91_auth_key: str | None = Field(default=None)
+    msg91_flow_id: str | None = Field(default=None)
+
     mandi_api_key: str | None = Field(default=None)
     agmarknet_api_key: str | None = Field(default=None)
     mandi_api_url: str = Field(default="https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070")

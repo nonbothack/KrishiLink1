@@ -57,6 +57,27 @@ def expire_reservations():
         db.close()
 
 
+@celery_app.task(name="notifications.dispatch_deal_confirmation_sms", bind=True, max_retries=3, default_retry_delay=15)
+def dispatch_deal_confirmation_sms(self, payload: dict):
+    """
+    Asynchronously delivers deal confirmation SMS to the farmer.
+    Safe from transaction rollbacks.
+    """
+    from app.modules.notifications.sms_service import SMSService
+
+    try:
+        return SMSService.send_deal_confirmation(
+            farmer_phone=payload.get("farmer_phone"),
+            farmer_name=payload.get("farmer_name"),
+            crop_name=payload.get("crop_name", "Produce"),
+            quantity=payload.get("quantity", 0),
+            price_per_unit=payload.get("price_per_unit", 0),
+            order_id=payload.get("order_id", ""),
+        )
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
 @celery_app.task(name="outbox.process_pending", bind=True, max_retries=3, default_retry_delay=10)
 def process_outbox(self):
     from urllib.parse import urlparse
@@ -105,6 +126,14 @@ def process_outbox(self):
                         "payload": str(event.payload),
                     },
                 )
+
+                # Dispatch dedicated SMS task if event is deal.confirmed.sms
+                if event.event_type == "deal.confirmed.sms" and isinstance(event.payload, dict):
+                    try:
+                        dispatch_deal_confirmation_sms.delay(event.payload)
+                    except Exception:
+                        dispatch_deal_confirmation_sms(event.payload)
+
                 event.status = "COMPLETED"
                 processed += 1
             except Exception:
