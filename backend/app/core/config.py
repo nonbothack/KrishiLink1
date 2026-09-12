@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     twilio_auth_token: str | None = Field(default=None)
     twilio_from_number: str | None = Field(default=None)
 
+    smsgate_base_url: str | None = Field(default=None)
+    smsgate_username: str | None = Field(default=None)
+    smsgate_password: str | None = Field(default=None)
+    smsgate_device_id: str | None = Field(default=None)
+    smsgate_sim_number: int = Field(default=1)
+    smsgate_timeout_seconds: int = Field(default=15)
+
     mandi_api_key: str | None = Field(default=None)
     agmarknet_api_key: str | None = Field(default=None)
     mandi_api_url: str = Field(default="https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070")

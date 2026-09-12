@@ -122,6 +122,13 @@ class SMSService:
                 message=message_text,
             )
 
+        # 5. SMSGate Provider (Android SIM Gateway)
+        if provider == "smsgate":
+            return cls._send_smsgate(
+                phone_e164=phone_info["e164"],
+                message=message_text,
+            )
+
         logger.warning("Unknown SMS provider '%s'; skipping delivery", provider)
         return {
             "success": False,
@@ -202,6 +209,12 @@ class SMSService:
 
         if provider == "twilio":
             return cls._send_twilio(
+                phone_e164=phone_info["e164"],
+                message=message,
+            )
+
+        if provider == "smsgate":
+            return cls._send_smsgate(
                 phone_e164=phone_info["e164"],
                 message=message,
             )
@@ -430,5 +443,125 @@ class SMSService:
                 "success": False,
                 "status": "FAILED",
                 "provider": "msg91",
+                "detail": str(exc),
+            }
+
+    @classmethod
+    def _send_smsgate(cls, phone_e164: str, message: str) -> dict[str, Any]:
+        """
+        Dispatches SMS via Android SMS Gateway (SMSGate).
+        Supports both Local Server (on LAN/tunnel) and Cloud Server modes.
+        Docs: https://docs.sms-gate.app/features/sending-messages/
+              https://docs.sms-gate.app/getting-started/local-server/
+        """
+        base_url = settings.smsgate_base_url
+        if not base_url:
+            logger.error("SMSGate requested but SMSGATE_BASE_URL is not configured")
+            return {
+                "success": False,
+                "status": "FAILED",
+                "provider": "smsgate",
+                "detail": "SMSGATE_BASE_URL is missing",
+            }
+
+        clean_base = base_url.strip().rstrip("/")
+        if not clean_base.startswith("http://") and not clean_base.startswith("https://"):
+            clean_base = f"http://{clean_base}"
+
+        # Determine target endpoint
+        if clean_base.endswith("/message") or clean_base.endswith("/messages"):
+            endpoint = clean_base
+        elif "api.sms-gate.app" in clean_base:
+            endpoint = f"{clean_base}/3rdparty/v1/messages"
+        else:
+            endpoint = f"{clean_base}/message"
+
+        payload: dict[str, Any] = {
+            "textMessage": {
+                "text": message,
+            },
+            "phoneNumbers": [phone_e164],
+            "simNumber": settings.smsgate_sim_number,
+        }
+        if settings.smsgate_device_id:
+            payload["deviceId"] = settings.smsgate_device_id
+
+        # Authentication
+        auth = None
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if settings.smsgate_username and settings.smsgate_password:
+            auth = httpx.BasicAuth(settings.smsgate_username.strip(), settings.smsgate_password.strip())
+        elif settings.smsgate_password and not settings.smsgate_username:
+            headers["Authorization"] = f"Bearer {settings.smsgate_password.strip()}"
+        elif settings.smsgate_username and not settings.smsgate_password:
+            auth = httpx.BasicAuth(settings.smsgate_username.strip(), "")
+
+        params = {"skipPhoneValidation": "true"} if ("3rdparty" in endpoint or "api.sms-gate.app" in endpoint) else None
+        timeout = float(settings.smsgate_timeout_seconds)
+
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                res = client.post(
+                    endpoint,
+                    json=payload,
+                    headers=headers,
+                    auth=auth,
+                    params=params,
+                )
+                status_code = res.status_code
+                try:
+                    resp_json = res.json()
+                except Exception:
+                    resp_json = {"raw": res.text}
+
+                if status_code in (200, 201, 202):
+                    msg_id = ""
+                    if isinstance(resp_json, dict):
+                        msg_id = resp_json.get("id") or resp_json.get("messageId") or ""
+                    elif isinstance(resp_json, list) and len(resp_json) > 0 and isinstance(resp_json[0], dict):
+                        msg_id = resp_json[0].get("id") or resp_json[0].get("messageId") or ""
+
+                    logger.info("SMSGate SMS accepted for %s (id=%s)", phone_e164, msg_id)
+                    return {
+                        "success": True,
+                        "status": "SENT",
+                        "provider": "smsgate",
+                        "request_id": str(msg_id) if msg_id else "",
+                        "detail": "SMS accepted by Android SMS Gateway",
+                    }
+                else:
+                    err_msg = ""
+                    if isinstance(resp_json, dict):
+                        err_msg = resp_json.get("message") or resp_json.get("error") or res.text
+                    else:
+                        err_msg = res.text
+                    logger.warning(
+                        "SMSGate delivery failed (HTTP %s): %s",
+                        status_code,
+                        err_msg,
+                    )
+                    return {
+                        "success": False,
+                        "status": "FAILED",
+                        "provider": "smsgate",
+                        "status_code": status_code,
+                        "detail": f"SMSGate error {status_code}: {err_msg}",
+                    }
+        except httpx.TimeoutException:
+            logger.error("SMSGate timeout communicating with endpoint %s", endpoint)
+            return {
+                "success": False,
+                "status": "FAILED",
+                "provider": "smsgate",
+                "detail": f"SMSGate gateway timeout ({timeout}s)",
+            }
+        except Exception as exc:
+            logger.exception("SMSGate unexpected error: %s", exc)
+            return {
+                "success": False,
+                "status": "FAILED",
+                "provider": "smsgate",
                 "detail": str(exc),
             }

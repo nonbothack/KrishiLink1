@@ -256,3 +256,187 @@ def test_sms_service_send_buyer_deal_confirmation():
         assert res["status"] == "DEMO"
         assert "Mehta Traders" in res["message"]
         assert "TEST01" in res["message"]
+
+
+def test_sms_service_smsgate_cloud_success():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"id": "gate_msg_101", "status": "Pending"}
+
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "smsgate"), \
+         patch.object(settings, "smsgate_base_url", "https://api.sms-gate.app"), \
+         patch.object(settings, "smsgate_username", "admin"), \
+         patch.object(settings, "smsgate_password", "secret"), \
+         patch.object(settings, "smsgate_device_id", "phone_abc123"), \
+         patch.object(settings, "smsgate_sim_number", 1), \
+         patch("httpx.Client.post", return_value=mock_resp) as mock_post:
+
+        res = SMSService.send_deal_confirmation(
+            farmer_phone="+919820019061",
+            farmer_name="Ramesh Patil",
+            crop_name="Wheat",
+            quantity=25,
+            price_per_unit=2530,
+            order_id="ord-9988",
+        )
+
+        assert res["success"] is True
+        assert res["status"] == "SENT"
+        assert res["provider"] == "smsgate"
+        assert res["request_id"] == "gate_msg_101"
+
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        assert args[0] == "https://api.sms-gate.app/3rdparty/v1/messages"
+        assert kwargs["params"] == {"skipPhoneValidation": "true"}
+        assert kwargs["json"]["phoneNumbers"] == ["+919820019061"]
+        assert kwargs["json"]["deviceId"] == "phone_abc123"
+        assert kwargs["json"]["simNumber"] == 1
+        assert "Namaste Ramesh Patil" in kwargs["json"]["textMessage"]["text"]
+
+
+def test_sms_service_smsgate_local_server_success():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"id": "local_msg_202"}
+
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "smsgate"), \
+         patch.object(settings, "smsgate_base_url", "http://192.168.1.50:8080"), \
+         patch.object(settings, "smsgate_username", "smsuser"), \
+         patch.object(settings, "smsgate_password", "smspass"), \
+         patch.object(settings, "smsgate_device_id", None), \
+         patch("httpx.Client.post", return_value=mock_resp) as mock_post:
+
+        res = SMSService.send_raw_sms(
+            phone="9820019061",
+            message="Direct LAN SMS via Android Gateway",
+        )
+
+        assert res["success"] is True
+        assert res["status"] == "SENT"
+        assert res["provider"] == "smsgate"
+        assert res["request_id"] == "local_msg_202"
+
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        assert args[0] == "http://192.168.1.50:8080/message"
+        assert kwargs["params"] is None
+        assert kwargs["json"]["phoneNumbers"] == ["+919820019061"]
+        assert "deviceId" not in kwargs["json"]
+        assert kwargs["json"]["textMessage"]["text"] == "Direct LAN SMS via Android Gateway"
+
+
+def test_sms_service_smsgate_missing_base_url():
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "smsgate"), \
+         patch.object(settings, "smsgate_base_url", None):
+
+        res = SMSService.send_deal_confirmation(
+            farmer_phone="9820019061",
+            farmer_name="Ramesh Patil",
+            crop_name="Wheat",
+            quantity=10,
+            price_per_unit=2500,
+            order_id="ord-fail-1",
+        )
+        assert res["success"] is False
+        assert res["status"] == "FAILED"
+        assert "SMSGATE_BASE_URL is missing" in res["detail"]
+
+
+def test_sms_service_smsgate_bearer_auth():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 201
+    mock_resp.json.return_value = [{"id": "array_id_77"}]
+
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "smsgate"), \
+         patch.object(settings, "smsgate_base_url", "https://custom-gateway.local/message"), \
+         patch.object(settings, "smsgate_username", None), \
+         patch.object(settings, "smsgate_password", "bearer-token-xyz"), \
+         patch.object(settings, "smsgate_device_id", None), \
+         patch("httpx.Client.post", return_value=mock_resp) as mock_post:
+
+        res = SMSService.send_raw_sms("+919820019061", "Test Bearer Auth")
+        assert res["success"] is True
+        assert res["status"] == "SENT"
+        assert res["request_id"] == "array_id_77"
+
+        args, kwargs = mock_post.call_args
+        assert args[0] == "https://custom-gateway.local/message"
+        assert kwargs["headers"]["Authorization"] == "Bearer bearer-token-xyz"
+
+
+def test_sms_service_smsgate_timeout():
+    import httpx
+
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "smsgate"), \
+         patch.object(settings, "smsgate_base_url", "http://192.168.1.100:8080"), \
+         patch("httpx.Client.post", side_effect=httpx.TimeoutException("Connection timed out")):
+
+        res = SMSService.send_deal_confirmation(
+            farmer_phone="9820019061",
+            farmer_name="Ramesh Patil",
+            crop_name="Wheat",
+            quantity=10,
+            price_per_unit=2500,
+            order_id="ord-timeout",
+        )
+        assert res["success"] is False
+        assert res["status"] == "FAILED"
+        assert "timeout" in res["detail"].lower()
+
+
+def test_sms_service_smsgate_http_error():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 503
+    mock_resp.json.return_value = {"message": "Device queue limit exceeded"}
+
+    with patch.object(settings, "sms_enabled", True), \
+         patch.object(settings, "sms_provider", "smsgate"), \
+         patch.object(settings, "smsgate_base_url", "https://api.sms-gate.app"), \
+         patch("httpx.Client.post", return_value=mock_resp):
+
+        res = SMSService.send_deal_confirmation(
+            farmer_phone="9820019061",
+            farmer_name="Ramesh Patil",
+            crop_name="Wheat",
+            quantity=10,
+            price_per_unit=2500,
+            order_id="ord-503",
+        )
+        assert res["success"] is False
+        assert res["status"] == "FAILED"
+        assert res["status_code"] == 503
+        assert "Device queue limit exceeded" in res["detail"]
+
+
+def test_notifications_test_sms_endpoint_with_smsgate(client):
+    login_resp = client.post("/api/v1/auth/login", json={"email": "ramesh@demo.com", "password": "demo123!"})
+    token = login_resp.json()["data"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    smsgate_result = {
+        "success": True,
+        "status": "SENT",
+        "provider": "smsgate",
+        "request_id": "gate_test_endpoint_1",
+        "detail": "SMS accepted by Android SMS Gateway",
+    }
+
+    with patch("app.modules.notifications.router.SMSService.send_raw_sms", return_value=smsgate_result):
+        resp = client.post(
+            "/api/v1/notifications/test-sms",
+            json={"phone": "9820019061", "message": "KrishiLink live gateway test"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["data"]["status"] == "SENT"
+        assert body["data"]["provider"] == "smsgate"
+        assert body["data"]["request_id"] == "gate_test_endpoint_1"
+
