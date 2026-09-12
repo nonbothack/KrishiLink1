@@ -1,9 +1,10 @@
 import logging
 import uuid
 from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
-from app.models import Crop, FPOProfile, FPOMember, Lot, Offer, Transaction, User
+from app.models import Crop, FPOMember, FPOProfile, Lot, Offer, Transaction, User
 from app.modules.fpo.schemas import FPOAggregateLotRequest, FPOMemberCreateRequest
 from app.modules.lots.router import gen_public_id
 
@@ -213,7 +214,7 @@ class FPOService:
     def aggregate_and_create_lot(db: Session, user: User, data: FPOAggregateLotRequest) -> dict:
         crop = db.query(Crop).filter(Crop.name.ilike(data.crop)).first()
         now_utc = datetime.now(timezone.utc)
-        
+
         # Build notes with provenance
         notes = data.notes or ""
         if data.member_ids:
