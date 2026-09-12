@@ -129,6 +129,22 @@ class FPOProfile(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class FPOMember(Base):
+    __tablename__ = "fpo_members"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fpo_id = Column(UUID(as_uuid=True), ForeignKey("fpo_profiles.id", ondelete="CASCADE"), nullable=False)
+    farmer_name = Column(Text, nullable=False)
+    phone = Column(Text, nullable=True)
+    village = Column(Text, nullable=True)
+    district = Column(Text, nullable=True)
+    land_acres = Column(Numeric(10, 2), nullable=True, default=0.0)
+    primary_crop = Column(Text, nullable=False)
+    ready_quantity_qtl = Column(Numeric(10, 2), nullable=True, default=0.0)
+    grade = Column(Text, nullable=True, default="A")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Crop(Base):
     __tablename__ = "crops"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

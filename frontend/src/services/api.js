@@ -709,3 +709,63 @@ export async function getLivePrices(arg = {}) {
   const sliced = items.slice(offset, offset + limit);
   return { success: true, data: mapItems(sliced), is_live: true, source: 'data.gov.in (Agmarknet in-memory)', total: items.length };
 }
+
+// 15. FPO Dashboard & Collective Operations
+export async function getFPOSummary() {
+  const res = await apiCall('/api/v1/fpo/summary');
+  if (res && res.success && res.data) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return {
+    success: false,
+    error: res?.error || 'Failed to load FPO summary',
+    data: {
+      organization_name: 'Nashik Farmer Collective FPO',
+      total_members: 120,
+      active_lots: 0,
+      total_volume_qtl: 0,
+      pending_offers: 0,
+      pending_offers_value: 0,
+      completed_deals: 0,
+      total_revenue: 0,
+    },
+  };
+}
+
+export async function getFPOMembers() {
+  const res = await apiCall('/api/v1/fpo/members');
+  if (res && res.success && Array.isArray(res.data)) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to load members', data: [] };
+}
+
+export async function addFPOMember(memberData) {
+  const res = await apiCall('/api/v1/fpo/members', {
+    method: 'POST',
+    body: JSON.stringify(memberData),
+  });
+  if (res && res.success) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to register member' };
+}
+
+export async function getFPOLots() {
+  const res = await apiCall('/api/v1/fpo/lots');
+  if (res && res.success && Array.isArray(res.data)) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to load FPO lots', data: [] };
+}
+
+export async function createFPOAggregatedLot(data) {
+  const res = await apiCall('/api/v1/fpo/aggregate-lot', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (res && res.success) {
+    return { success: true, data: res.data, provenance: 'live' };
+  }
+  return { success: false, error: res?.error || 'Failed to create aggregated lot' };
+}

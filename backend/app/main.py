@@ -14,6 +14,7 @@ from app.modules.admin.router import router as admin_router
 from app.modules.auth.router import router as auth_router
 from app.modules.crops.router import router as crops_router
 from app.modules.disputes.router import router as disputes_router
+from app.modules.fpo.router import router as fpo_router
 from app.modules.health.router import router as health_router
 from app.modules.lots.router import router as lots_router
 from app.modules.markets.router import router as markets_router
@@ -107,6 +108,7 @@ def create_app() -> FastAPI:
     app.include_router(markets_router, prefix=settings.api_v1_prefix)
     app.include_router(prices_router, prefix=settings.api_v1_prefix)
     app.include_router(lots_router, prefix=settings.api_v1_prefix)
+    app.include_router(fpo_router, prefix=settings.api_v1_prefix)
     app.include_router(matching_router, prefix=settings.api_v1_prefix)
     app.include_router(offers_router, prefix=settings.api_v1_prefix)
     app.include_router(reservations_router, prefix=settings.api_v1_prefix)

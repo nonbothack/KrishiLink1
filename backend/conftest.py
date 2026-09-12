@@ -105,3 +105,12 @@ def admin_auth_headers(client, ensure_test_users):
         pytest.fail(f"Cannot authenticate test admin user: {r.text}")
     data = r.json()["data"]
     return {"Authorization": f"Bearer {data['access_token']}"}
+
+
+@pytest.fixture
+def fpo_auth_headers(client, ensure_test_users):
+    r = client.post("/api/v1/auth/login", json={"email": "fpo@demo.com", "password": "demo123!"})
+    if r.status_code != 200:
+        pytest.fail(f"Cannot authenticate test fpo user: {r.text}")
+    data = r.json()["data"]
+    return {"Authorization": f"Bearer {data['access_token']}"}
