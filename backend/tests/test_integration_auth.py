@@ -85,6 +85,35 @@ def test_logout(client, auth_headers):
     assert r.status_code == 200
     assert r.json()["success"] == True
 
+def test_logout_revokes_tokens(client, ensure_test_users):
+    # 1. Login to get fresh tokens
+    r_login = client.post("/api/v1/auth/login", json={"email": "ramesh@demo.com", "password": "demo123!"})
+    assert r_login.status_code == 200
+    access_tok = r_login.json()["data"]["access_token"]
+    refresh_tok = r_login.json()["data"]["refresh_token"]
+
+    # 2. Access /auth/me with active token -> 200
+    r_me1 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {access_tok}"})
+    assert r_me1.status_code == 200
+
+    # 3. Logout providing access token and refresh token
+    r_logout = client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {access_tok}"},
+        json={"refresh_token": refresh_tok},
+    )
+    assert r_logout.status_code == 200
+
+    # 4. Accessing /auth/me with revoked access token must now be 401
+    r_me2 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {access_tok}"})
+    assert r_me2.status_code == 401
+    assert "revoked" in r_me2.json().get("detail", "").lower()
+
+    # 5. Using revoked refresh token must now be 401
+    r_ref = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_tok})
+    assert r_ref.status_code == 401
+    assert "revoked" in r_ref.json().get("detail", "").lower()
+
 def test_forgot_and_reset_password(client, ensure_test_users):
     # Request reset
     r = client.post("/api/v1/auth/forgot-password", json={"email": "ramesh@demo.com"})

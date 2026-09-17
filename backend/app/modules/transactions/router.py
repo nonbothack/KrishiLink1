@@ -8,7 +8,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.idempotency import check_idempotency, save_idempotency
 from app.core.rate_limit import rate_limit
-from app.models import AuditLog, Lot, Offer, OutboxEvent, Reservation, Transaction, User
+from app.models import AuditLog, Lot, Offer, OutboxEvent, Reservation, TradeEvent, TradeTermSnapshot, Transaction, User
 from app.modules.notifications.service import NotificationService
 from app.modules.notifications.sms_service import SMSService
 
@@ -58,7 +58,7 @@ def create_transaction(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    cached = check_idempotency(request, db)
+    cached = check_idempotency(request, db, user=user)
     if cached:
         return cached.response_body
 
@@ -88,12 +88,15 @@ def create_transaction(
         Transaction.offer_id == res.offer_id
     ).first()
     if existing_txn:
+        if not existing_txn.public_id:
+            existing_txn.public_id = f"KL-TRD-{uuid.uuid4().hex[:10].upper()}"
         res.status = "CONSUMED"
         db.commit()
         body = {
             "success": True,
             "data": {
                 "id": str(existing_txn.id),
+                "public_id": existing_txn.public_id,
                 "status": existing_txn.status,
                 "lot_id": str(existing_txn.lot_id),
                 "gross_value": float(existing_txn.gross_value) if existing_txn.gross_value else 0.0,
@@ -101,7 +104,7 @@ def create_transaction(
             "message": "Transaction created",
             "request_id": getattr(request.state, "request_id", str(uuid.uuid4())),
         }
-        save_idempotency(request, db, 201, body)
+        save_idempotency(request, db, 201, body, user=user)
         return body
 
     if res.status != "ACTIVE":
@@ -120,6 +123,7 @@ def create_transaction(
 
     txn = Transaction(
         id=uuid.uuid4(),
+        public_id=f"KL-TRD-{uuid.uuid4().hex[:10].upper()}",
         lot_id=res.lot_id,
         buyer_id=res.buyer_id,
         seller_id=lot.owner_id if lot else user.id,
@@ -130,6 +134,46 @@ def create_transaction(
         idempotency_key=idempotency_key,
     )
     db.add(txn)
+    db.flush()
+    price_unit = float(offer.price_per_unit) if offer and offer.price_per_unit else (
+        float(lot.asking_price) if lot and lot.asking_price else 0.0
+    )
+    db.add(
+        TradeTermSnapshot(
+            id=uuid.uuid4(),
+            transaction_id=txn.id,
+            lot_id=res.lot_id,
+            buyer_id=res.buyer_id,
+            seller_id=lot.owner_id if lot else user.id,
+            crop_name=lot.crop_name if lot else "Agricultural Produce",
+            grade=lot.grade if lot else "A",
+            quantity=float(res.quantity),
+            unit=lot.unit if lot else "quintal",
+            price_per_unit=price_unit,
+            gross_value=gross_val,
+            estimated_net_realization=round(gross_val * 0.96, 2),
+            delivery_window="Standard 3-5 business days",
+            pickup_location=lot.location_text if lot else "Farm/Warehouse",
+            delivery_location="Buyer Delivery Hub",
+        )
+    )
+    db.add(
+        TradeEvent(
+            id=uuid.uuid4(),
+            transaction_id=txn.id,
+            actor_id=user.id,
+            actor_role=user.role,
+            event_type="DOMAIN_EVENT",
+            from_status=None,
+            to_status="CREATED",
+            title="Trade Agreement Formed",
+            description=(
+                f"Agreed {float(res.quantity)} {lot.unit if lot else 'quintal'} of "
+                f"{lot.crop_name if lot else 'Produce'} (Grade {lot.grade if lot else 'A'}) "
+                f"at Rs. {price_unit:,.2f}/{lot.unit if lot else 'quintal'}."
+            ),
+        )
+    )
     res.status = "CONSUMED"
     rid = getattr(request.state, "request_id", str(uuid.uuid4()))
     db.add(
@@ -201,6 +245,7 @@ def create_transaction(
         "success": True,
         "data": {
             "id": str(txn.id),
+            "public_id": txn.public_id,
             "status": txn.status,
             "lot_id": str(txn.lot_id),
             "gross_value": float(txn.gross_value) if txn.gross_value else 0.0,
@@ -208,7 +253,7 @@ def create_transaction(
         "message": "Transaction created",
         "request_id": rid,
     }
-    save_idempotency(request, db, 201, body)
+    save_idempotency(request, db, 201, body, user=user)
     return body
 
 
@@ -233,6 +278,7 @@ def list_txns(
     data = [
         {
             "id": str(t.id),
+            "public_id": t.public_id,
             "lot_id": str(t.lot_id),
             "crop_name": lots_map[t.lot_id].crop_name if t.lot_id in lots_map else "Produce",
             "status": t.status,
@@ -261,6 +307,7 @@ def get_txn(txn_id: str, request: Request, db: Session = Depends(get_db), user: 
         "success": True,
         "data": {
             "id": str(t.id),
+            "public_id": t.public_id,
             "lot_id": str(t.lot_id),
             "crop_name": lot.crop_name if lot else "Produce",
             "buyer_id": str(t.buyer_id),

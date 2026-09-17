@@ -40,7 +40,7 @@ def create_lot(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("farmer", "fpo", "admin")),
 ):
-    cached = check_idempotency(request, db)
+    cached = check_idempotency(request, db, user=user)
     if cached:
         return cached.response_body
     crop = db.query(Crop).filter(Crop.name.ilike(data.crop)).first()
@@ -90,7 +90,7 @@ def create_lot(
         "message": "Lot created",
         "request_id": getattr(request.state, "request_id", None),
     }
-    save_idempotency(request, db, 201, body)
+    save_idempotency(request, db, 201, body, user=user)
     return body
 
 

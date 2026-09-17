@@ -1,11 +1,14 @@
 import uuid
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
-from app.main import app
-from app.core.database import SessionLocal
+from app.core.database import Base, SessionLocal, engine
 from app.core.security import hash_password
+from app.main import app
 from app.models import Crop, Market, User
+
 
 @pytest.fixture(scope="session")
 def client():
@@ -23,6 +26,14 @@ def db_session():
 
 @pytest.fixture(scope="session", autouse=True)
 def ensure_test_users():
+    Base.metadata.create_all(engine)
+    if "sqlite" in str(engine.url):
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN public_id TEXT"))
+                conn.commit()
+            except Exception:
+                pass
     db = SessionLocal()
     try:
         # Seed test crops
@@ -56,7 +67,7 @@ def ensure_test_users():
             ("admin@demo.com", "9876543213", "Admin User", "admin", "Mumbai, Maharashtra", "Mumbai"),
             ("fpo@demo.com", "9876543214", "Nashik Farmers Collective", "fpo", "Nashik, Maharashtra", "Nashik"),
         ]
-        
+
         for email, phone, name, role, loc, dist in users_to_ensure:
             u = db.query(User).filter(User.email == email).first()
             if not u:
@@ -77,7 +88,7 @@ def ensure_test_users():
             else:
                 u.password_hash = hash_password("demo123!")
                 u.is_active = True
-                
+
         db.commit()
     finally:
         db.close()
@@ -113,4 +124,4 @@ def fpo_auth_headers(client, ensure_test_users):
     if r.status_code != 200:
         pytest.fail(f"Cannot authenticate test fpo user: {r.text}")
     data = r.json()["data"]
-    return {"Authorization": f"Bearer {data['access_token']}"}
+    return {"Authorization": f"Bearer {data['access_token']}"}

@@ -10,6 +10,7 @@ from app.models import AuditLog, User
 from app.modules.auth.schemas import (
     ForgotPasswordRequest,
     LoginRequest,
+    LogoutRequest,
     RefreshRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -18,6 +19,7 @@ from app.modules.auth.schemas import (
 from app.modules.auth.service import (
     authenticate_user,
     issue_tokens,
+    logout_user,
     refresh_tokens,
     register_user,
     request_password_reset,
@@ -72,6 +74,7 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
 
 
 @router.post("/refresh", response_model=dict)
+@rate_limit(max_requests=30, window_seconds=60, key_prefix="rl_ref")
 def refresh(request: Request, response: Response, data: RefreshRequest | None = None, db: Session = Depends(get_db)):
     token = data.refresh_token if data else request.cookies.get("krishilink_refresh")
     if not data:
@@ -117,7 +120,13 @@ def me(request: Request, user: User = Depends(get_current_user)):
 
 
 @router.post("/logout", response_model=dict)
-def logout(request: Request, response: Response, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def logout(
+    request: Request,
+    response: Response,
+    data: LogoutRequest | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     check_browser_origin(request)
     token = request.headers.get("authorization", "").removeprefix("Bearer ")
     payload = decode_token(token)
@@ -125,5 +134,6 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db), 
     if sid:
         db.add(AuditLog(actor_id=str(user.id), action="session.revoked", entity="session", entity_id=sid))
         db.commit()
+    logout_user(db, token, data.refresh_token if data else request.cookies.get("krishilink_refresh"), user, request)
     response.delete_cookie("krishilink_refresh", path="/api/v1/auth", httponly=True, samesite="lax")
     return {"success": True, "data": None, "message": "Session ended"}

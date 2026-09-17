@@ -45,7 +45,7 @@ def create_offer(
     user: User = Depends(get_current_user),
 ):
     _ensure_buyer(user)
-    cached = check_idempotency(request, db)
+    cached = check_idempotency(request, db, user=user)
     if cached:
         return cached.response_body
 
@@ -147,7 +147,7 @@ def create_offer(
         "message": "Offer created",
         "request_id": rid,
     }
-    save_idempotency(request, db, 201, body)
+    save_idempotency(request, db, 201, body, user=user)
     return body
 
 
