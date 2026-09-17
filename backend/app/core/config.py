@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000)
     frontend_url: str = Field(default="http://localhost:3000")
     cors_origins: str = Field(
-        default="http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:8000,http://localhost:8001,https://krishi-link1.vercel.app,https://krishilink.vercel.app"
+        default="http://127.0.0.1:5173,http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:8000,http://localhost:8001,https://krishi-link1.vercel.app,https://krishilink.vercel.app"
     )
 
     database_url: str = Field(default="postgresql+psycopg://krishilink:krishilink@localhost:5432/krishilink")

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_token
-from app.models import User
+from app.models import AuditLog, User
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -30,6 +30,9 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     if payload.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    sid = payload.get("sid")
+    if sid and db.query(AuditLog).filter(AuditLog.action == "session.revoked", AuditLog.entity_id == sid).first():
+        raise HTTPException(401, "Session ended")
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")

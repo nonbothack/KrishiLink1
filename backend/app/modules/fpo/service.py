@@ -2,6 +2,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models import Crop, FPOMember, FPOProfile, Lot, Offer, Transaction, User
@@ -9,17 +10,6 @@ from app.modules.fpo.schemas import FPOAggregateLotRequest, FPOMemberCreateReque
 from app.modules.lots.router import gen_public_id
 
 logger = logging.getLogger(__name__)
-
-# Sample verified members automatically provisioned for fresh/seeded FPOs
-SEED_FPO_MEMBERS = [
-    {"farmer_name": "Ramesh Patil", "phone": "9820019061", "village": "Lasalgaon", "district": "Nashik", "land_acres": 4.5, "primary_crop": "Onion", "ready_quantity_qtl": 200, "grade": "A"},
-    {"farmer_name": "Sunita Deshpande", "phone": "9820019062", "village": "Deola", "district": "Nashik", "land_acres": 6.0, "primary_crop": "Onion", "ready_quantity_qtl": 300, "grade": "A"},
-    {"farmer_name": "Ganesh Shinde", "phone": "9820019063", "village": "Sinnar", "district": "Nashik", "land_acres": 8.0, "primary_crop": "Onion", "ready_quantity_qtl": 500, "grade": "B"},
-    {"farmer_name": "Laxmi Jadhav", "phone": "9820019064", "village": "Dindori", "district": "Nashik", "land_acres": 3.5, "primary_crop": "Tomato", "ready_quantity_qtl": 200, "grade": "A"},
-    {"farmer_name": "Balu Gholap", "phone": "9820019065", "village": "Yeola", "district": "Nashik", "land_acres": 5.0, "primary_crop": "Soybean", "ready_quantity_qtl": 150, "grade": "A"},
-    {"farmer_name": "Shrikant Kadam", "phone": "9820019066", "village": "Niphad", "district": "Nashik", "land_acres": 7.0, "primary_crop": "Wheat", "ready_quantity_qtl": 350, "grade": "A"},
-]
-
 
 class FPOService:
     @staticmethod
@@ -29,33 +19,15 @@ class FPOService:
             profile = FPOProfile(
                 id=uuid.uuid4(),
                 user_id=user.id,
-                organization_name=user.full_name or "Nashik Farmer Collective FPO",
-                registration_number=f"MH-FPO-{str(user.id)[:8].upper()}",
-                member_count=120,
-                total_land_acres=450.0,
-                primary_crops=["Onion", "Tomato", "Soybean", "Wheat"],
+                organization_name=user.full_name,
+                registration_number=None,
+                member_count=0,
+                total_land_acres=0.0,
+                primary_crops=[],
             )
             db.add(profile)
             db.commit()
             db.refresh(profile)
-
-        # Ensure seed members exist if table is empty for this FPO
-        member_count = db.query(FPOMember).filter(FPOMember.fpo_id == profile.id).count()
-        if member_count == 0:
-            for m in SEED_FPO_MEMBERS:
-                db.add(FPOMember(
-                    id=uuid.uuid4(),
-                    fpo_id=profile.id,
-                    farmer_name=m["farmer_name"],
-                    phone=m["phone"],
-                    village=m["village"],
-                    district=m["district"],
-                    land_acres=m["land_acres"],
-                    primary_crop=m["primary_crop"],
-                    ready_quantity_qtl=m["ready_quantity_qtl"],
-                    grade=m["grade"],
-                ))
-            db.commit()
 
         return profile
 
@@ -65,7 +37,7 @@ class FPOService:
 
         # 1. Total Members
         actual_members = db.query(FPOMember).filter(FPOMember.fpo_id == profile.id).count()
-        total_members = max(actual_members, profile.member_count or 0)
+        total_members = actual_members
 
         # 2. Lots published by this FPO user
         lots = db.query(Lot).filter(Lot.owner_id == user.id, Lot.deleted_at.is_(None)).all()
@@ -80,7 +52,7 @@ class FPOService:
             else []
         )
         pending_offers = [o for o in offers if (o.status or "").upper() == "PENDING"]
-        pending_offers_value = sum(float(o.offered_price) * float(o.quantity) for o in pending_offers)
+        pending_offers_value = sum(float(o.price_per_unit) * float(o.quantity) for o in pending_offers)
 
         # 4. Completed deals / transactions
         txns = (
@@ -183,10 +155,10 @@ class FPOService:
             offers_by_lot[lid].append({
                 "id": str(o.id),
                 "buyer_id": str(o.owner_id),
-                "offered_price": float(o.offered_price),
+                "offered_price": float(o.price_per_unit),
                 "quantity": float(o.quantity),
                 "status": o.status,
-                "notes": o.notes,
+                "notes": o.message,
                 "created_at": o.created_at.isoformat() if o.created_at else None,
             })
 
@@ -215,13 +187,27 @@ class FPOService:
         crop = db.query(Crop).filter(Crop.name.ilike(data.crop)).first()
         now_utc = datetime.now(timezone.utc)
 
-        # Build notes with provenance
+        if not crop:
+            raise HTTPException(404, "Crop not found")
         notes = data.notes or ""
+        members = []
         if data.member_ids:
-            members = db.query(FPOMember).filter(FPOMember.id.in_([uuid.UUID(mid) for mid in data.member_ids if mid])).all()
-            member_names = [m.farmer_name for m in members]
-            if member_names:
-                notes = f"Aggregated collective lot from {len(member_names)} members: {', '.join(member_names)}. {notes}".strip()
+            profile = FPOService.get_or_create_fpo_profile(db, user)
+            try:
+                ids = [uuid.UUID(mid) for mid in set(data.member_ids)]
+            except ValueError:
+                raise HTTPException(422, "Invalid member ID")
+            members = db.query(FPOMember).filter(FPOMember.id.in_(ids), FPOMember.fpo_id == profile.id).with_for_update().all()
+            if len(members) != len(ids):
+                raise HTTPException(403, "Member does not belong to this group")
+            if any(m.primary_crop.lower() != data.crop.lower() or m.grade != data.grade for m in members):
+                raise HTTPException(422, "Members must have the same crop and grade")
+            available = sum(float(m.ready_quantity_qtl) for m in members)
+            if abs(available - data.quantity) > 0.005:
+                raise HTTPException(409, "Selected quantity has changed; refresh members")
+            for member in members:
+                member.ready_quantity_qtl = 0
+            notes = f"Produce combined from {len(members)} members. {notes}".strip()
 
         lot = Lot(
             id=uuid.uuid4(),
@@ -234,7 +220,7 @@ class FPOService:
             unit=data.unit or "quintal",
             asking_price=data.asking_price,
             location_text=data.location_text,
-            district=data.district or user.district or "Nashik",
+            district=data.district or user.district,
             status="PUBLISHED",
             created_at=now_utc,
             updated_at=now_utc,

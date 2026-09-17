@@ -221,7 +221,7 @@ def list_txns(
     limit: int = Query(20, ge=1, le=100),
 ):
     q = db.query(Transaction)
-    if user.role.lower() == "farmer":
+    if user.role.lower() in ("farmer", "fpo"):
         q = q.filter(Transaction.seller_id == user.id)
     elif user.role.lower() == "buyer":
         q = q.filter(Transaction.buyer_id == user.id)

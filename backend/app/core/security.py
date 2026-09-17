@@ -35,12 +35,14 @@ def create_access_token(sub: str, role: str, extra: dict[str, Any] | None = None
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_refresh_token(sub: str) -> str:
+def create_refresh_token(sub: str, session_id: str | None = None) -> str:
     import uuid
 
     now = datetime.now(timezone.utc)
     exp = now + timedelta(days=settings.jwt_refresh_ttl_days)
     payload = {"sub": sub, "iat": now, "exp": exp, "type": "refresh", "jti": str(uuid.uuid4())}
+    if session_id:
+        payload["sid"] = session_id
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 

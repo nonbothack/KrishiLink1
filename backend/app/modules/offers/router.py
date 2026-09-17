@@ -171,7 +171,7 @@ def list_offers(
     if status:
         q = q.filter(Offer.status == status.upper())
 
-    if user.role.lower() == "farmer":
+    if user.role.lower() in ("farmer", "fpo"):
         q = q.filter(Offer.owner_id == user.id)
     elif user.role.lower() == "buyer":
         q = q.filter(Offer.buyer_id == user.id)

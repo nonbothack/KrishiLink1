@@ -52,6 +52,34 @@ def test_refresh(client, ensure_test_users):
     assert r2.status_code == 200
     assert "access_token" in r2.json()["data"]
 
+
+def test_web_session_uses_http_only_cookie_and_logout_revokes_it(client, ensure_test_users):
+    web_headers = {"X-KrishiLink-Client": "web", "Origin": "http://localhost:5173"}
+    login = client.post(
+        "/api/v1/auth/login",
+        headers=web_headers,
+        json={"email": "ramesh@demo.com", "password": "demo123!"},
+    )
+    assert login.status_code == 200
+    assert "refresh_token" not in login.json()["data"]
+    assert "HttpOnly" in login.headers["set-cookie"]
+
+    refresh = client.post("/api/v1/auth/refresh", headers=web_headers)
+    assert refresh.status_code == 200
+    access_token = refresh.json()["data"]["access_token"]
+
+    logout = client.post(
+        "/api/v1/auth/logout",
+        headers={**web_headers, "Authorization": f"Bearer {access_token}"},
+    )
+    assert logout.status_code == 200
+
+    revoked = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert revoked.status_code == 401
+
 def test_logout(client, auth_headers):
     r = client.post("/api/v1/auth/logout", headers=auth_headers)
     assert r.status_code == 200

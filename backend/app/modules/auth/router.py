@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import rate_limit
-from app.models import User
+from app.core.security import decode_token
+from app.models import AuditLog, User
 from app.modules.auth.schemas import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -24,12 +26,30 @@ from app.modules.auth.service import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+def check_browser_origin(request: Request):
+    origin = request.headers.get("origin")
+    if origin and origin not in settings.cors_origins_list:
+        raise HTTPException(403, "Unrecognized browser origin")
+    if not origin and request.headers.get("sec-fetch-site") == "cross-site":
+        raise HTTPException(403, "Cross-site session request denied")
+
+
+def browser_tokens(request: Request, response: Response, tokens: dict):
+    if request.headers.get("x-krishilink-client") != "web":
+        return tokens
+    check_browser_origin(request)
+    response.set_cookie("krishilink_refresh", tokens["refresh_token"], httponly=True,
+                        secure=settings.env == "production", samesite="lax",
+                        path="/api/v1/auth", max_age=settings.jwt_refresh_ttl_days * 86400)
+    return {key: value for key, value in tokens.items() if key != "refresh_token"}
+
+
 
 @router.post("/register", response_model=dict, status_code=201)
 @rate_limit(max_requests=10, window_seconds=60, key_prefix="rl_reg")
-def register(data: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+def register(data: RegisterRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     user = register_user(db, data, request)
-    tokens = issue_tokens(user)
+    tokens = browser_tokens(request, response, issue_tokens(user))
     return {
         "success": True,
         "data": {"user": UserResponse.model_validate(user).model_dump(), **tokens},
@@ -40,9 +60,9 @@ def register(data: RegisterRequest, request: Request, db: Session = Depends(get_
 
 @router.post("/login", response_model=dict)
 @rate_limit(max_requests=25, window_seconds=60, key_prefix="rl_login")
-def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def login(data: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     user = authenticate_user(db, data.email, data.password, request)
-    tokens = issue_tokens(user)
+    tokens = browser_tokens(request, response, issue_tokens(user))
     return {
         "success": True,
         "data": {"user": UserResponse.model_validate(user).model_dump(), **tokens},
@@ -52,9 +72,14 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=dict)
-def refresh(data: RefreshRequest, db: Session = Depends(get_db)):
-    tokens = refresh_tokens(db, data.refresh_token)
-    return {"success": True, "data": tokens, "message": "Tokens refreshed", "request_id": None}
+def refresh(request: Request, response: Response, data: RefreshRequest | None = None, db: Session = Depends(get_db)):
+    token = data.refresh_token if data else request.cookies.get("krishilink_refresh")
+    if not data:
+        check_browser_origin(request)
+    if not token:
+        raise HTTPException(401, "Missing refresh session")
+    tokens = browser_tokens(request, response, refresh_tokens(db, token))
+    return {"success": True, "data": tokens, "message": "Session refreshed"}
 
 
 @router.post("/forgot-password", response_model=dict)
@@ -92,10 +117,13 @@ def me(request: Request, user: User = Depends(get_current_user)):
 
 
 @router.post("/logout", response_model=dict)
-def logout(request: Request, user: User = Depends(get_current_user)):
-    return {
-        "success": True,
-        "data": None,
-        "message": "Logged out (client should discard tokens)",
-        "request_id": getattr(request.state, "request_id", None),
-    }
+def logout(request: Request, response: Response, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_browser_origin(request)
+    token = request.headers.get("authorization", "").removeprefix("Bearer ")
+    payload = decode_token(token)
+    sid = payload.get("sid")
+    if sid:
+        db.add(AuditLog(actor_id=str(user.id), action="session.revoked", entity="session", entity_id=sid))
+        db.commit()
+    response.delete_cookie("krishilink_refresh", path="/api/v1/auth", httponly=True, samesite="lax")
+    return {"success": True, "data": None, "message": "Session ended"}

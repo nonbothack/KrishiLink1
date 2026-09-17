@@ -12,7 +12,7 @@
 ## 📌 Repository State
 
 - **Active Branch**: `feature/production-rebuild-2.0`
-- **Total Passing Automated Tests**: **73 tests passing at 100%** (`backend/tests/`)
+- **Total Passing Automated Tests**: **101 backend tests and 10 frontend/browser checks passing at 100%**.
 - **Strict Quality Gates**: `python -m ruff check app` (0 errors), `python -m mypy app` (0 errors), `npm run lint` (0 errors), `npm run build` (0 errors), strict CI pipeline (all `|| true` bypasses eliminated).
 - **Frontend Status**: 0 errors, Vite production bundle builds in ~20s
 - **Legacy Reference Files**: `backend/routes/`, `backend/services/`, `flask_app_legacy.py` (Deprecated Flask — preserved for reference only)
@@ -37,6 +37,7 @@
 | **Phase 8** | **Full Test Suite & Hardened CI** | ✅ Complete | • Fixed all fixtures in `backend/conftest.py` with multi-role seed data (farmer, buyer, fpo, admin).<br>• Removed all `|| true` / `|| echo` bypasses from `.github/workflows/ci.yml`.<br>• CI executes PostGIS, Redis, Alembic up/down, Ruff linting, Pytest, Docker build, and Vite bundle. |
 | **Phase 9** | **Multi-Role E2E Journeys** | ✅ Complete | • Created `backend/tests/test_e2e_journeys.py` covering:<br>  - Farmer Journey: Register → Produce Listing → Match Discovery → Dispute Filing → Alerts.<br>  - Buyer Journey: Discovery → Filters → Offer Creation → Negotiation → Escrow Transition.<br>  - FPO Journey: Login → Aggregated Lot Listing → Storage Discovery.<br>  - Admin Journey: Moderation → Health Metrics → Dispute Arbitration → Outbox. |
 | **Phase 10**| **Final Production Freeze & Audit** | ✅ Complete | • Updated `README.md`, `ARCHITECTURE.md`, `AGENTS.md`, and `PROGRESS_TRACKER.md`.<br>• 100% Green CI on `feature/production-rebuild-2.0`. |
+| **Phase 11**| **Farmer-Centred Product Experience** | ✅ Complete | • Rebuilt public, authentication, farmer, buyer, and FPO journeys around plain language, review steps, clear units, and responsive navigation.<br>• Added explicit English, Marathi, and Hindi copy without DOM translation.<br>• Removed silent demo-data fallbacks and fabricated market/FPO data paths.<br>• Moved browser refresh sessions to HTTP-only cookies with session revocation.<br>• Added Vitest and Playwright coverage for unit conversion, safe intent routing, responsive layout, accessibility, and the protected farmer journey. |
 
 ---
 
@@ -52,6 +53,8 @@
 - **Run Backend Pytest (60 tests)**: `cd backend && python -m pytest -v`
 - **Run Ruff Linter**: `cd backend && python -m ruff check app`
 - **Run Frontend Linter**: `cd frontend && npm run lint`
+- **Run Frontend Unit Tests**: `cd frontend && npm run test`
+- **Run Frontend Browser Tests**: `cd frontend && npm run test:e2e`
 - **Run Frontend Build**: `cd frontend && npm run build`
 
 ### Mandatory Post-Push Verification Checklist

@@ -11,13 +11,19 @@ class RegisterRequest(BaseModel):
     role: str = Field(default="farmer")
     location: str | None = None
     district: str | None = None
-    state: str | None = "Maharashtra"
+    state: str | None = None
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone(cls, value):
+        from app.modules.auth.service import normalize_phone
+        return normalize_phone(value) if value else None
 
     @field_validator("role")
     @classmethod
     def validate_role(cls, v: str) -> str:
         v = v.lower()
-        if v not in ("farmer", "buyer", "fpo", "admin", "operator"):
+        if v not in ("farmer", "buyer", "fpo"):
             raise ValueError("role must be farmer, buyer, or fpo")
         return v
 

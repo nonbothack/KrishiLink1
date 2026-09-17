@@ -98,12 +98,18 @@ def create_lot(
 def list_lots(
     request: Request,
     db: Session = Depends(get_db),
+    farmer_id: str | None = None,
     status: str | None = None,
     crop: str | None = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
 ):
     q = db.query(Lot).filter(Lot.deleted_at.is_(None))
+    if farmer_id:
+        try:
+            q = q.filter(Lot.owner_id == uuid.UUID(farmer_id))
+        except ValueError:
+            raise HTTPException(422, "Invalid farmer ID")
     if status:
         q = q.filter(Lot.status == status)
     if crop:

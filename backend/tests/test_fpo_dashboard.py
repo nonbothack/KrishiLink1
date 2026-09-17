@@ -8,7 +8,7 @@ def test_fpo_summary(client, fpo_auth_headers):
     assert res["success"] is True
     data = res["data"]
     assert "total_members" in data
-    assert data["total_members"] >= 6
+    assert data["total_members"] == len(client.get("/api/v1/fpo/members", headers=fpo_auth_headers).json()["data"])
     assert "active_lots" in data
     assert "total_volume_qtl" in data
     assert "pending_offers" in data
@@ -21,7 +21,7 @@ def test_fpo_members_list_and_create(client, fpo_auth_headers):
     res = r.json()
     assert res["success"] is True
     assert isinstance(res["data"], list)
-    assert len(res["data"]) >= 6
+    assert isinstance(res["data"], list)
 
     # Create new member
     new_member_payload = {
@@ -43,9 +43,15 @@ def test_fpo_members_list_and_create(client, fpo_auth_headers):
 
 
 def test_fpo_aggregate_lot(client, fpo_auth_headers):
-    # Retrieve members to aggregate
-    r_members = client.get("/api/v1/fpo/members", headers=fpo_auth_headers)
-    member_ids = [m["id"] for m in r_members.json()["data"][:2]]
+    # Explicit fixtures: real groups must start empty, not receive invented members.
+    member_ids = []
+    for index, quantity in enumerate((200, 300)):
+        response = client.post("/api/v1/fpo/members", headers=fpo_auth_headers, json={
+            "farmer_name": f"Aggregation test member {index}",
+            "primary_crop": "Onion", "ready_quantity_qtl": quantity, "grade": "A",
+        })
+        assert response.status_code == 201
+        member_ids.append(response.json()["data"]["id"])
 
     aggregate_payload = {
         "crop": "Onion",
@@ -67,6 +73,9 @@ def test_fpo_aggregate_lot(client, fpo_auth_headers):
     assert data["crop"] == "Onion"
     assert data["quantity"] == 500.0
     assert data["asking_price"] == 1950.0
+
+    duplicate = client.post("/api/v1/fpo/aggregate-lot", json=aggregate_payload, headers=fpo_auth_headers)
+    assert duplicate.status_code == 409
 
     # Verify lot appears in FPO's lots list
     r_lots = client.get("/api/v1/fpo/lots", headers=fpo_auth_headers)

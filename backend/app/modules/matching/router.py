@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
@@ -9,9 +11,22 @@ from app.modules.matching.service import find_candidates, refresh_matches
 
 router = APIRouter(prefix="/matches", tags=["matching"])
 
+def owned_lot(db, lot_id, user):
+    try:
+        lot = db.get(Lot, uuid.UUID(lot_id))
+    except ValueError:
+        lot = None
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+    if user.role not in ("admin", "operator") and str(lot.owner_id) != str(user.id):
+        raise HTTPException(403, "This lot belongs to another account")
+    return lot
+
+
 
 @router.post("/refresh", response_model=dict)
 def refresh(data: MatchRequest, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    owned_lot(db, data.lot_id, user)
     candidates = refresh_matches(db, data.lot_id)
     if candidates is None:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -37,6 +52,7 @@ def refresh(data: MatchRequest, request: Request, db: Session = Depends(get_db),
 def list_matches(
     request: Request, db: Session = Depends(get_db), lot_id: str = Query(...), user=Depends(get_current_user)
 ):
+    owned_lot(db, lot_id, user)
     lot, candidates = find_candidates(db, lot_id)
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -82,7 +98,7 @@ def explain(match_id: str, request: Request, db: Session = Depends(get_db), user
     m = db.get(Match, match_id)
     if not m:
         raise HTTPException(status_code=404, detail="Match not found")
-    lot = db.get(Lot, m.lot_id)
+    lot = owned_lot(db, str(m.lot_id), user)
     return {
         "success": True,
         "data": {

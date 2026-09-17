@@ -34,32 +34,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Auto-seed initial market prices if database has 0 observations
-    try:
+    if settings.agmarknet_api_key or settings.mandi_api_key:
         from app.core.database import SessionLocal
-        from app.models import PriceObservation
-
-        db = SessionLocal()
-        try:
-            obs_count = db.query(PriceObservation).count()
-            if obs_count == 0:
-                logger.info("Database has 0 price observations. Auto-seeding initial data...")
-                from app.seed import run as run_seed
-
-                run_seed()
-                logger.info("Auto-seed completed successfully.")
-
-            # Ensure price observations extend continuously up to today
+        from app.modules.prices.sync_service import sync_daily_prices
+        with SessionLocal() as db:
             try:
-                from app.modules.prices.sync_service import sync_daily_prices
-
                 sync_daily_prices(db)
-            except Exception as se:
-                logger.warning(f"Initial daily price sync error (non-fatal): {se}")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.warning(f"Lifespan setup encountered error (non-fatal): {e}")
+            except Exception:
+                logger.warning("Initial market sync failed; dated records remain available")
     yield
 
 
@@ -79,7 +61,6 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
-        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

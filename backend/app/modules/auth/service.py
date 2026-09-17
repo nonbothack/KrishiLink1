@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +16,15 @@ from app.core.security import (
     verify_password,
 )
 from app.models import AuditLog, OutboxEvent, User
+
+
+def normalize_phone(value):
+    digits = re.sub(r"[\s()+-]", "", value)
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    if len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    return digits
 
 
 def _geog(lat, lng):
@@ -48,7 +58,7 @@ def register_user(db: Session, data, request: Request):
 
     uid = uuid.uuid4()
     latlng = {"Nashik": (19.9975, 73.7898), "Pune": (18.5204, 73.8567), "Mumbai": (19.0760, 72.8777)}.get(
-        data.district or data.location or "Pune", (18.5204, 73.8567)
+        data.district or data.location, None
     )
     user = User(
         id=uid,
@@ -59,7 +69,7 @@ def register_user(db: Session, data, request: Request):
         role=data.role.lower(),
         location=data.location,
         district=data.district or data.location,
-        state=data.state or "Maharashtra",
+        state=data.state,
         location_geog=_geog(*latlng) if latlng else None,
         is_verified=False,
         is_active=True,
@@ -90,7 +100,7 @@ def register_user(db: Session, data, request: Request):
 
 
 def authenticate_user(db: Session, email_or_phone: str, password: str, request: Request):
-    login_id = email_or_phone.strip()
+    login_id = email_or_phone.strip() if "@" in email_or_phone else normalize_phone(email_or_phone)
     user = db.query(User).filter((User.email == login_id.lower()) | (User.phone == login_id)).first()
     if not user or not user.password_hash or not verify_password(password, user.password_hash):
         raise HTTPException(
@@ -114,9 +124,10 @@ def authenticate_user(db: Session, email_or_phone: str, password: str, request: 
     return user
 
 
-def issue_tokens(user: User):
-    access = create_access_token(str(user.id), user.role)
-    refresh = create_refresh_token(str(user.id))
+def issue_tokens(user: User, session_id: str | None = None):
+    sid = session_id or str(uuid.uuid4())
+    access = create_access_token(str(user.id), user.role, {"sid": sid})
+    refresh = create_refresh_token(str(user.id), sid)
     return {
         "access_token": access,
         "refresh_token": refresh,
@@ -132,6 +143,9 @@ def refresh_tokens(db: Session, refresh_token: str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    sid = payload.get("sid")
+    if sid and db.query(AuditLog).filter(AuditLog.action == "session.revoked", AuditLog.entity_id == sid).first():
+        raise HTTPException(401, "Session ended")
     uid = payload.get("sub")
     try:
         user = db.get(User, uuid.UUID(uid))
@@ -139,7 +153,7 @@ def refresh_tokens(db: Session, refresh_token: str):
         user = None
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return issue_tokens(user)
+    return issue_tokens(user, payload.get("sid"))
 
 
 def request_password_reset(db: Session, email: str, request: Request):
