@@ -1,12 +1,24 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getLots,createOffer } from '../services/api';
+import { getNotifications, getOffers, getRequirements, getTransactions } from '../services/api';
 import { useLanguage } from '../hooks/useLanguage';
-import { DataState, Field, Notice, PageHeading, useResource } from '../components/Experience';
-export default function BuyerDashboard(){
- const {t,cropT,money}=useLanguage();const lots=useResource(()=>getLots(null,{status:'PUBLISHED'}));const [search,setSearch]=useState('');const [selected,setSelected]=useState(null);const [quantity,setQuantity]=useState('');const [price,setPrice]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [sent,setSent]=useState(false);const [key,setKey]=useState('');
- function select(l){setSelected(l);setQuantity(String(l.quantity));setPrice(l.asking_price?String(l.asking_price):'');setError('');setSent(false);setKey(crypto.randomUUID());}
- async function send(e){e.preventDefault();setBusy(true);setError('');const res=await createOffer({lot_id:selected.id,quantity:Number(quantity),price_per_unit:Number(price)},key);setBusy(false);if(res.success){setSelected(null);setSent(true);}else setError(res.error);}
- const visible=lots.data.filter(l=>(l.crop+' '+(l.location||'')).toLowerCase().includes(search.toLowerCase()));
- return <><PageHeading title={t('browse')} description={t('buyerBenefit')} action={<Link className="button secondary" to="/offers">{t('offers')}</Link>}/>{sent&&<Notice>{t('offerSent')}</Notice>}{selected?<form className="panel form-stack narrow" onSubmit={send}><h2>{cropT(selected.crop)}</h2><Notice>{t('offerReview')}</Notice><Field label={t('quantity')+' ('+t(selected.unit||'quintal')+')'} type="number" inputMode="decimal" min=".001" max={selected.quantity} step="any" required value={quantity} onChange={e=>setQuantity(e.target.value)}/><Field label={t('offerPrice')+' (₹ / '+t(selected.unit||'quintal')+')'} type="number" inputMode="decimal" min=".01" step=".01" required value={price} onChange={e=>setPrice(e.target.value)}/><div className="total-panel"><span>{t('grossTotal')}</span><strong>{money(Number(quantity)*Number(price)||0)}</strong><p>{t('costNote')}</p></div>{error&&<Notice error>{t(error)}</Notice>}<div className="form-actions"><button type="button" className="button secondary" onClick={()=>setSelected(null)}>{t('cancel')}</button><button className="button" disabled={busy}>{t(busy?'loading':'sendOffer')}</button></div></form>:<><div className="panel" style={{marginBottom:20}}><Field label={t('search')} type="search" value={search} onChange={e=>setSearch(e.target.value)}/></div><DataState loading={lots.loading} error={lots.error} empty={!visible.length} onRetry={lots.retry}><div className="card-grid">{visible.map(l=><article className="panel" key={l.id}><h3>{cropT(l.crop)}</h3><p className="muted">{l.quantity} {t(l.unit||'quintal')} · {l.location}</p><p className="muted">{t('grade')}: {l.grade}</p><p className="amount">{l.asking_price!=null?money(l.asking_price)+' / '+t(l.unit||'quintal'):'—'}</p><button className="button" onClick={()=>select(l)}>{t('makeOffer')}</button></article>)}</div></DataState></>}</>;
+import { DataState, PageHeading, useResource } from '../components/Experience';
+export default function BuyerDashboard() {
+  const { t, cropT } = useLanguage();
+  const requirements = useResource(getRequirements); const offers = useResource(getOffers); const trades = useResource(getTransactions); const notifications = useResource(getNotifications);
+  const active = requirements.data.filter((item) => ['ACTIVE', 'PARTIALLY_FILLED'].includes(item.status));
+  const actions = [...offers.data.filter((item) => item.status === 'COUNTERED'), ...trades.data.filter((item) => item.status !== 'COMPLETED')].slice(0, 3);
+  return (
+    <>
+      <PageHeading
+        title={t('buyerDashboard')}
+        description={t('buyerDashboardIntro')}
+        action={
+          <Link className="button" to="/buyer/requirements">{t('createRequirement')}</Link>
+        }
+      />
+      <div className="card-grid buyer-summary"><article className="panel"><h2>{t('openRequirements')}</h2><strong className="amount">{active.length}</strong><Link to="/buyer/requirements">{t('viewRequirements')}</Link></article><article className="panel"><h2>{t('offersRequiringAction')}</h2><strong className="amount">{offers.data.filter((item) => item.status === 'COUNTERED').length}</strong><Link to="/offers">{t('viewOffers')}</Link></article><article className="panel"><h2>{t('activeTrades')}</h2><strong className="amount">{trades.data.filter((item) => item.status !== 'COMPLETED').length}</strong><Link to="/transactions">{t('orders')}</Link></article></div>
+      <section className="panel"><h2>{t('procurementActions')}</h2><DataState loading={offers.loading || trades.loading} error={offers.error || trades.error} empty={!actions.length ? t('noBuyerActions') : false}>{actions.map((item) => <p key={item.id}>{item.crop_name ? cropT(item.crop_name) : cropT(item.crop)} · <Link to={item.transaction_id ? `/trades/${item.transaction_id}` : '/offers'}>{t('open')}</Link></p>)}</DataState></section>
+      <section className="panel"><h2>{t('notifications')}</h2><DataState loading={notifications.loading} error={notifications.error} empty={!notifications.data.length ? t('empty') : false}>{notifications.data.slice(0, 3).map((item) => <p key={item.id}>{item.title}</p>)}</DataState></section>
+    </>
+  );
 }

@@ -1,4 +1,3 @@
-import pytest
 
 # ==============================================================================
 # Multi-Role End-to-End Journey Tests (KrishiLink 2.0 Phase 9)
@@ -89,12 +88,14 @@ def test_buyer_end_to_end_journey(client, auth_headers, buyer_auth_headers):
     assert r_txn.status_code == 201
     txn_id = r_txn.json()["data"]["id"]
 
-    # 6. Escrow state transitions
+    # 6. The buyer can report an intended payment state, but without an
+    # integrated payment provider the participant cannot mark it confirmed.
     r_trans1 = client.post(f"/api/v1/transactions/{txn_id}/transition", json={"to_status": "PAYMENT_PENDING"}, headers=buyer_auth_headers)
     assert r_trans1.status_code == 200
 
     r_trans2 = client.post(f"/api/v1/transactions/{txn_id}/transition", json={"to_status": "PAYMENT_CONFIRMED"}, headers=buyer_auth_headers)
-    assert r_trans2.status_code == 200
+    assert r_trans2.status_code == 409
+    assert "payment provider" in r_trans2.json()["detail"].lower()
 
 
 def test_fpo_end_to_end_journey(client):
@@ -104,17 +105,36 @@ def test_fpo_end_to_end_journey(client):
     token = r_login.json()["data"]["access_token"]
     fpo_headers = {"Authorization": f"Bearer {token}"}
 
-    # 2. FPO lists aggregated lot
-    agg_payload = {
-        "crop": "Wheat",
+    # 2. FPO records member intake and publishes only through the persisted pool ledger.
+    crop_response = client.get("/api/v1/crops?search=Wheat")
+    assert crop_response.status_code == 200
+    crop = next(item for item in crop_response.json()["data"]["items"] if item["name"].lower() == "wheat")
+    member_response = client.post("/api/v1/fpo/members", json={
+        "farmer_name": "Packet Journey Member",
+        "primary_crop": crop["name"],
         "grade": "A",
-        "quantity": 500.0,
-        "asking_price": 2300.0,
+    }, headers=fpo_headers)
+    assert member_response.status_code == 201, member_response.text
+    intake_response = client.post("/api/v1/fpo/intakes", json={
+        "member_id": member_response.json()["data"]["id"],
+        "crop": crop["id"],
+        "grade": "A",
+        "gross_quantity": "500",
+        "tare_quantity": "0",
+        "unit": "quintal",
+    }, headers=fpo_headers)
+    assert intake_response.status_code == 201, intake_response.text
+    pool_response = client.post("/api/v1/fpo/pools", json={
+        "contributions": [{"intake_id": intake_response.json()["data"]["id"], "quantity": "500"}],
+    }, headers=fpo_headers)
+    assert pool_response.status_code == 201, pool_response.text
+    publish_response = client.post(f"/api/v1/fpo/pools/{pool_response.json()['data']['id']}/publish", json={
+        "asking_price": "2300",
         "location_text": "Nashik Collective Warehouse",
-        "district": "Nashik"
-    }
-    r_lot = client.post("/api/v1/lots", json=agg_payload, headers=fpo_headers)
-    assert r_lot.status_code == 201
+        "district": "Nashik",
+    }, headers=fpo_headers)
+    assert publish_response.status_code == 201, publish_response.text
+    assert Decimal(publish_response.json()["data"]["quantity_qtl"]) == Decimal("500")
 
     # 3. FPO checks verified storage facilities
     r_storage = client.get("/api/v1/storage", headers=fpo_headers)
@@ -188,3 +208,4 @@ def test_truthful_market_price_trends(client):
         # Trend must be valid status and not fabricated
         assert item["trend"] in ("RISING", "FALLING", "STABLE", "UNKNOWN")
         assert "change_pct" in item
+from decimal import Decimal

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">KrishiLink</title>
+  <desc id="description">Agricultural market reports and produce trading tools.</desc>
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#163727" />
+      <stop offset="1" stop-color="#2f6349" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#faf9f4" />
+  <rect x="40" y="40" width="1120" height="550" rx="38" fill="url(#field)" />
+  <circle cx="1004" cy="130" r="180" fill="#d4a017" opacity=".14" />
+  <path d="M124 448c116-46 199-27 304 7 127 41 244 40 382-12 90-34 180-40 266-20v99H124z" fill="#b7cdbf" opacity=".18" />
+  <path d="M124 493c141-31 244 20 364 30 144 12 265-57 398-60 68-2 129 10 190 27v52H124z" fill="#d4a017" opacity=".34" />
+  <text x="112" y="235" fill="#f4f7f1" font-family="Inter,Segoe UI,sans-serif" font-size="78" font-weight="700">KrishiLink</text>
+  <text x="116" y="312" fill="#e5eee7" font-family="Inter,Segoe UI,sans-serif" font-size="31">Reported market information.</text>
+  <text x="116" y="358" fill="#e5eee7" font-family="Inter,Segoe UI,sans-serif" font-size="31">Clearer produce-trading choices.</text>
+  <rect x="105" y="117" width="42" height="42" rx="10" fill="#d4a017" />
+  <path d="M126 148c0-18 10-29 24-32m-24 32c-1-13-9-20-19-21m19 21c-5-10-3-20 5-26" fill="none" stroke="#163727" stroke-linecap="round" stroke-width="5" />
+</svg>

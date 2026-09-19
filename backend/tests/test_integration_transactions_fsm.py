@@ -1,5 +1,6 @@
 import uuid
 
+
 def test_transaction_fsm(client, auth_headers, buyer_auth_headers):
     # Ensure lot exists
     r = client.get("/api/v1/lots", headers=auth_headers)
@@ -38,14 +39,21 @@ def test_transaction_fsm(client, auth_headers, buyer_auth_headers):
     # Contractual pricing check: 10 qty * 2000 price = 20000.0 (not hardcoded 10*10)
     assert float(txn_data["gross_value"]) == 20000.0
 
-    # Transition through FSM
-    transitions = ["PAYMENT_PENDING", "PAYMENT_CONFIRMED"]
+    # Payment references are participant reports; only a configured provider may
+    # mark a payment confirmed. This installation has no provider.
+    transitions = ["PAYMENT_PENDING"]
     for status in transitions:
         r5 = client.post(f"/api/v1/transactions/{txn_id}/transition", json={
             "to_status": status
         }, headers=buyer_auth_headers)
         assert r5.status_code == 200
         assert r5.json()["data"]["status"] == status
+
+    rejected = client.post(f"/api/v1/transactions/{txn_id}/transition", json={
+        "to_status": "PAYMENT_CONFIRMED"
+    }, headers=buyer_auth_headers)
+    assert rejected.status_code == 409
+    assert "payment provider" in rejected.json()["detail"].lower()
 
 def test_transaction_ownership_rejection(client, auth_headers, buyer_auth_headers):
     # Ensure lot exists

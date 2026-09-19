@@ -27,7 +27,7 @@ def check_idempotency(request: Request, db: Session, user=None):
     return None
 
 
-def save_idempotency(request: Request, db: Session, status: int, body: dict, user=None):
+def save_idempotency(request: Request, db: Session, status: int, body: dict, user=None, *, commit: bool = True):
     scoped_key = _build_scoped_key(request, user)
     if not scoped_key:
         return
@@ -37,4 +37,5 @@ def save_idempotency(request: Request, db: Session, status: int, body: dict, use
         existing.response_body = body
     else:
         db.add(IdempotencyKey(key=scoped_key, response_status=status, response_body=body))
-    db.commit()
+    if commit:
+        db.commit()

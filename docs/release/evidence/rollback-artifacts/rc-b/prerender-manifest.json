@@ -1,0 +1,47 @@
+{
+  "strategy": "vite-react-build-time-ssg",
+  "site_origin_configured": false,
+  "public_api_available": false,
+  "dynamic_crop_routes": 0,
+  "dynamic_outlet_routes": 0,
+  "outlet_routes_truncated": false,
+  "indexed_crop_routes": 0,
+  "generated_routes": [
+    "/",
+    "/prices",
+    "/mandis",
+    "/map",
+    "/buyers",
+    "/help",
+    "/help/prices",
+    "/help/sell",
+    "/help/offers",
+    "/help/support",
+    "/how-it-works",
+    "/about",
+    "/contact",
+    "/terms",
+    "/privacy",
+    "/refunds-and-cancellations",
+    "/grievance-policy",
+    "/accuracy",
+    "/security",
+    "/404"
+  ],
+  "sitemap_routes": [
+    "/",
+    "/help",
+    "/help/prices",
+    "/help/sell",
+    "/help/offers",
+    "/help/support",
+    "/how-it-works",
+    "/about"
+  ],
+  "api_status": {
+    "crops": "unavailable",
+    "prices": "unavailable",
+    "outlets": "unavailable",
+    "buyers": "unavailable"
+  }
+}

@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import settings
 
@@ -12,7 +13,7 @@ celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    timezone="UTC",
+    timezone="Asia/Kolkata",
     enable_utc=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
@@ -26,6 +27,18 @@ celery_app.conf.update(
             "task": "reservations.expire",
             "schedule": 60.0,
         },
+        "prices.agmarknet.daily-reported": {
+            "task": "prices.sync_official",
+            "schedule": crontab(minute=0, hour="6,13,18"),
+        },
+        "intelligence.reported-price-alerts": {
+            "task": "intelligence.evaluate_price_alerts",
+            "schedule": 900.0,
+        },
+        "notifications.web-push-retries": {
+            "task": "notifications.web_push_retry_due",
+            "schedule": 60.0,
+        },
     },
 )
 
@@ -35,6 +48,34 @@ celery_app.autodiscover_tasks(["app.workers"])
 @celery_app.task(name="health.ping")
 def ping():
     return "pong"
+
+
+@celery_app.task(name="prices.sync_official", bind=True, max_retries=5)
+def sync_official_prices(self, run_id: str | None = None, crop: str | None = None,
+                         district: str | None = None, state: str | None = None):
+    from app.core.database import SessionLocal
+    from app.modules.prices.provider import PriceProviderError
+    from app.modules.prices.sync_service import CoordinationUnavailable, run_price_sync
+
+    db = SessionLocal()
+    try:
+        try:
+            scope = {"commodity": crop, "district": district}
+            if state:
+                scope["state.keyword"] = state
+            scope = {key: value for key, value in scope.items() if value}
+            return run_price_sync(db, retry_run_id=run_id, scope=scope or None)
+        except PriceProviderError as exc:
+            if not exc.retryable:
+                return {"status": "failed", "failure": exc.kind.value}
+            countdown = exc.retry_after or min(60 * (2 ** self.request.retries), 900)
+            raise self.retry(kwargs={"run_id": getattr(exc, "run_id", None), "crop": crop,
+                                     "district": district, "state": state}, countdown=countdown, exc=exc)
+        except CoordinationUnavailable as exc:
+            raise self.retry(kwargs={"run_id": run_id, "crop": crop, "district": district, "state": state},
+                             countdown=min(30 * (2 ** self.request.retries), 300), exc=exc)
+    finally:
+        db.close()
 
 
 @celery_app.task(name="reservations.expire")
@@ -53,6 +94,21 @@ def expire_reservations():
         )
         db.commit()
         return {"expired": expired}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="intelligence.evaluate_price_alerts")
+def evaluate_reported_price_alerts():
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.modules.intelligence.service import evaluate_price_alerts
+
+    if not settings.intelligence_price_alerts_enabled:
+        return {"evaluated": 0, "triggered": 0, "disabled": True}
+    db = SessionLocal()
+    try:
+        return evaluate_price_alerts(db)
     finally:
         db.close()
 
@@ -96,6 +152,52 @@ def dispatch_offer_received_sms(self, payload: dict):
         )
     except Exception as exc:
         raise self.retry(exc=exc)
+
+
+@celery_app.task(name="notifications.dispatch_web_push")
+def dispatch_notification_web_push(notification_id: str):
+    """Deliver the existing canonical Notification asynchronously to its devices."""
+    from app.core.database import SessionLocal
+    from app.modules.notifications.web_push_service import deliver_notification
+
+    db = SessionLocal()
+    try:
+        return deliver_notification(db, notification_id)
+    finally:
+        db.close()
+
+
+def dispatch_notification_outbox_event(event) -> bool:
+    """Queue push only for the canonical notification aggregate event."""
+    if (
+        getattr(event, "aggregate", None) != "notification"
+        or not str(getattr(event, "event_type", "")).startswith("NOTIFICATION_")
+        or not getattr(event, "aggregate_id", None)
+    ):
+        return False
+    dispatch_notification_web_push.delay(str(event.aggregate_id))
+    return True
+
+
+@celery_app.task(name="notifications.web_push_retry_due")
+def retry_due_web_push_deliveries():
+    """Recover bounded transient/expired-lease attempts without creating notifications."""
+    from app.core.database import SessionLocal
+    from app.modules.notifications.web_push_service import deliver_notification, retry_due_deliveries
+
+    db = SessionLocal()
+    try:
+        notification_ids = retry_due_deliveries(db)
+    finally:
+        db.close()
+    results = []
+    for notification_id in notification_ids:
+        session = SessionLocal()
+        try:
+            results.append(deliver_notification(session, notification_id))
+        finally:
+            session.close()
+    return {"notifications_retried": len(notification_ids)}
 
 
 @celery_app.task(name="outbox.process_pending", bind=True, max_retries=3, default_retry_delay=10)
@@ -160,6 +262,11 @@ def process_outbox(self):
                         dispatch_offer_received_sms.delay(event.payload)
                     except Exception:
                         dispatch_offer_received_sms(event.payload)
+
+                # Existing Notification/outbox event is the only push source.
+                # Queue asynchronously; never send from the request or fall
+                # back to inline provider delivery if the broker is unavailable.
+                dispatch_notification_outbox_event(event)
 
                 event.status = "COMPLETED"
                 processed += 1

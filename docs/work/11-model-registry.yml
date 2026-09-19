@@ -1,0 +1,8 @@
+schema_version: 1
+registry_status: no_eligible_models
+active_model: null
+models: []
+reason: >-
+  No model can be registered or activated until a provenance-complete official
+  price history passes the audit and the gates in 11-model-card.md. No demo or
+  unprovenanced data was used for training or evaluation.

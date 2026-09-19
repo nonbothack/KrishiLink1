@@ -1,6 +1,7 @@
+from decimal import Decimal
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,11 +26,31 @@ class Settings(BaseSettings):
     database_url_sync: str | None = Field(default=None)
 
     redis_url: str = Field(default="redis://localhost:6379/0")
+    lot_price_deviation_warning_pct: Decimal = Field(default=Decimal("50"), ge=0, le=1000)
+    # Intelligence features are independently kill-switchable. Forecasts remain
+    # disabled until a governed model passes the deployment gates in Packet 11.
+    intelligence_forecasts_enabled: bool = Field(default=False)
+    intelligence_price_alerts_enabled: bool = Field(default=True)
+    intelligence_trust_summaries_enabled: bool = Field(default=True)
+    intelligence_descriptive_move_threshold_pct: Decimal = Field(default=Decimal("1.5"), ge=0, le=100)
+
+    # Web Push is explicitly opt-in and remains unavailable until an operator
+    # configures production VAPID credentials. The private key is never returned.
+    web_push_enabled: bool = False
+    web_push_vapid_public_key: str | None = Field(default=None, repr=False)
+    web_push_vapid_private_key: SecretStr | None = Field(default=None, repr=False)
+    web_push_vapid_subject: str | None = None
+    web_push_allowed_hosts: str = "fcm.googleapis.com,updates.push.services.mozilla.com,web.push.apple.com"
+    web_push_max_attempts: int = Field(default=4, ge=1, le=8)
 
     jwt_secret: str = Field(default="dev-only-change-in-production-32chars!!")
     jwt_algorithm: str = Field(default="HS256")
     jwt_access_ttl_min: int = Field(default=15)
     jwt_refresh_ttl_days: int = Field(default=7)
+    otp_code_ttl_seconds: int = Field(default=300, ge=60, le=900)
+    otp_resend_cooldown_seconds: int = Field(default=30, ge=15, le=300)
+    otp_development_code_exposure_enabled: bool = Field(default=False)
+    auth_password_min_length: int = Field(default=10, ge=10, le=72)
 
     s3_endpoint: str | None = Field(default=None)
     s3_bucket: str | None = Field(default=None)
@@ -55,9 +76,16 @@ class Settings(BaseSettings):
     smsgate_sim_number: int = Field(default=1)
     smsgate_timeout_seconds: int = Field(default=15)
 
-    mandi_api_key: str | None = Field(default=None)
-    agmarknet_api_key: str | None = Field(default=None)
+    mandi_api_key: SecretStr | None = Field(default=None, repr=False)
+    agmarknet_api_key: SecretStr | None = Field(default=None, repr=False)
     mandi_api_url: str = Field(default="https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070")
+
+    @field_validator("mandi_api_key", "agmarknet_api_key", mode="before")
+    @classmethod
+    def blank_provider_keys_are_unset(cls, value):
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        return value
 
     log_level: str = Field(default="INFO")
     trusted_proxies: str = Field(default="127.0.0.1,::1,localhost")
@@ -76,13 +104,24 @@ class Settings(BaseSettings):
         return [p.strip() for p in self.trusted_proxies.split(",") if p.strip()]
 
     @property
+    def web_push_allowed_hosts_list(self) -> list[str]:
+        return [host.strip().lower() for host in self.web_push_allowed_hosts.split(",") if host.strip()]
+
+    @property
     def database_url_effective(self) -> str:
         return self.database_url_sync or self.database_url
 
     def validate_prod(self) -> None:
         if self.env == "production":
             assert self.jwt_secret != "dev-only-change-in-production-32chars!!", "JWT_SECRET must be set in production"
-            assert "localhost" not in self.database_url, "DATABASE_URL must not be localhost in production"
+            assert "sqlite" not in self.database_url_effective.lower(), "SQLite is not permitted in production"
+            assert self.database_url_effective.startswith(("postgresql://", "postgresql+psycopg://")), "DATABASE_URL must be PostgreSQL in production"
+            assert "localhost" not in self.database_url_effective and "127.0.0.1" not in self.database_url_effective, "DATABASE_URL must not be loopback in production"
+            assert not self.debug, "DEBUG must be disabled in production"
+            assert not self.demo_mode, "DEMO_MODE must be disabled in production"
+            assert not self.otp_development_code_exposure_enabled, "OTP development disclosure must be disabled in production"
+            assert self.redis_url and "localhost" not in self.redis_url and "127.0.0.1" not in self.redis_url, "REDIS_URL must point to a managed/non-loopback service in production"
+            assert self.cors_origins_list and "*" not in self.cors_origins_list, "Wildcard CORS is not permitted in production"
 
 
 @lru_cache

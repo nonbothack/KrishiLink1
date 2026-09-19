@@ -1,7 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -14,11 +13,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-import sys, os
+import os
+import sys
+
+# Prevent the local SQLite convenience initializer from creating the current
+# ORM schema before Alembic applies its ordered migrations.
+os.environ["KRISHILINK_ALEMBIC_RUNNING"] = "1"
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..")))
-from app.core.database import Base
 from app.core.config import settings
-import app.models
+from app.core.database import Base
+
 config.set_main_option("sqlalchemy.url", settings.database_url_effective)
 target_metadata = Base.metadata
 

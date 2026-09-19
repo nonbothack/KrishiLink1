@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -17,10 +17,13 @@ def list_reservations(
     limit: int = Query(20, ge=1, le=100),
 ):
     q = db.query(Reservation)
-    if user.role.lower() == "farmer":
+    role = user.role.lower()
+    if role in ("farmer", "fpo"):
         q = q.join(Lot, Reservation.lot_id == Lot.id).filter(Lot.owner_id == user.id)
-    elif user.role.lower() == "buyer":
+    elif role == "buyer":
         q = q.filter(Reservation.buyer_id == user.id)
+    elif role != "admin":
+        raise HTTPException(status_code=403, detail="Reservations are not available for this role")
     total = q.count()
     items = q.order_by(Reservation.reserved_at.desc()).offset((page - 1) * limit).limit(limit).all()
     data = [

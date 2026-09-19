@@ -81,7 +81,13 @@ def _cleanup_in_memory_buckets(now: float, window_seconds: int):
         for k in stale_keys:
             _in_memory_buckets.pop(k, None)
 
-def _check_limit(request, max_requests: int, window_seconds: int, key_prefix: str):
+def _check_limit(
+    request,
+    max_requests: int,
+    window_seconds: int,
+    key_prefix: str,
+    production_requires_redis: bool = False,
+):
     global _redis_logged_degradation
     client_ip = _get_client_ip(request)
     if client_ip == "testclient" and "PYTEST_CURRENT_TEST" in os.environ and getattr(request, "_allow_testclient_bypass", True):
@@ -109,6 +115,11 @@ def _check_limit(request, max_requests: int, window_seconds: int, key_prefix: st
                 )
             return
         except RedisError as redis_err:
+            if production_requires_redis and settings.env == "production":
+                raise HTTPException(
+                    status_code=503,
+                    detail="Abuse protection is temporarily unavailable",
+                ) from redis_err
             if not _redis_logged_degradation:
                 logger.warning(
                     "Redis error during rate check (%s). Falling back to node-local in-memory window (development-only).",
@@ -127,14 +138,23 @@ def _check_limit(request, max_requests: int, window_seconds: int, key_prefix: st
             detail=f"Rate limit exceeded: maximum {max_requests} requests per {window_seconds}s.",
         )
 
-def rate_limit(max_requests: int = 100, window_seconds: int = 60, key_prefix: str = "rl"):
+def rate_limit(
+    max_requests: int = 100,
+    window_seconds: int = 60,
+    key_prefix: str = "rl",
+    production_requires_redis: bool = False,
+):
     def decorator(func: Callable):
         if inspect.iscoroutinefunction(func):
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
                 req = _extract_request(args, kwargs)
                 if req:
-                    _check_limit(req, max_requests, window_seconds, key_prefix)
+                    if production_requires_redis and settings.env == "production" and get_redis() is None:
+                        raise HTTPException(status_code=503, detail="Abuse protection is temporarily unavailable")
+                    _check_limit(
+                        req, max_requests, window_seconds, key_prefix, production_requires_redis
+                    )
                 return await func(*args, **kwargs)
             return async_wrapper
         else:
@@ -142,7 +162,11 @@ def rate_limit(max_requests: int = 100, window_seconds: int = 60, key_prefix: st
             def sync_wrapper(*args, **kwargs):
                 req = _extract_request(args, kwargs)
                 if req:
-                    _check_limit(req, max_requests, window_seconds, key_prefix)
+                    if production_requires_redis and settings.env == "production" and get_redis() is None:
+                        raise HTTPException(status_code=503, detail="Abuse protection is temporarily unavailable")
+                    _check_limit(
+                        req, max_requests, window_seconds, key_prefix, production_requires_redis
+                    )
                 return func(*args, **kwargs)
             return sync_wrapper
     return decorator

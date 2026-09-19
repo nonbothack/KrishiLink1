@@ -179,8 +179,10 @@ class Base(DeclarativeBase):
 def create_db_engine():
     db_url = settings.database_url_effective
 
-    # If SQLite explicitly configured or dev fallback
+    # SQLite is test/development-only. Production and staging must fail closed.
     if "sqlite" in db_url:
+        if settings.env in ("production", "staging"):
+            raise RuntimeError(f"SQLite database configuration is not permitted in {settings.env}")
         eng = create_engine(
             db_url,
             connect_args={"check_same_thread": False},
@@ -188,7 +190,8 @@ def create_db_engine():
         )
         import app.models  # noqa: F401
 
-        Base.metadata.create_all(eng)
+        if os.getenv("KRISHILINK_ALEMBIC_RUNNING") != "1":
+            Base.metadata.create_all(eng)
         return eng
 
     # Try PostgreSQL, fallback to local SQLite only in local development/test environments
@@ -228,7 +231,8 @@ def create_db_engine():
         )
         import app.models  # noqa: F401
 
-        Base.metadata.create_all(eng)
+        if os.getenv("KRISHILINK_ALEMBIC_RUNNING") != "1":
+            Base.metadata.create_all(eng)
         return eng
 
 

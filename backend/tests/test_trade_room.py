@@ -60,11 +60,17 @@ def test_get_trade_room_and_idor_protection(client, auth_headers, buyer_auth_hea
     assert room["public_id"].startswith("KL-TRD-")
     assert room["terms"]["crop_name"] == "Wheat"
     assert room["terms"]["grade"] == "A"
-    assert room["payment"]["is_sandbox"] is True
-    assert "Sandbox" in room["payment"]["note"]
+    assert room["payment"]["provider_connected"] is False
+    assert room["payment"]["provider_verified"] is False
+    assert room["payment"]["status"] == "NO_PROVIDER_DATA"
+    assert "do not prove funds moved" in room["payment"]["note"]
+    assert room["terms"]["delivery_window"] is None
+    assert room["terms"]["delivery_location"] is None
+    assert room["payment"].get("transport_cost") is None
+    assert room["payment"].get("platform_fee") is None
     assert room["quality"]["agreed_grade"] == "A"
-    assert "scheduled in Phase 7" in room["quality"]["note"]
-    assert room["next_action"]["action_type"] == "CONFIRM_PAYMENT"
+    assert "No verified assay" in room["quality"]["note"]
+    assert room["next_action"]["action_type"] == "REPORT_PAYMENT_SENT"
     assert room["next_action"]["is_current_user_action"] is True
     assert len(room["timeline"]) >= 1
 
@@ -107,60 +113,60 @@ def test_trade_fsm_lifecycle_and_rbac(client, auth_headers, buyer_auth_headers):
     r_txn = client.post("/api/v1/transactions", json={"reservation_id": res_id}, headers=buyer_auth_headers)
     txn_id = r_txn.json()["data"]["id"]
 
-    # 1. Farmer attempting to authorize buyer payment -> 403
-    r_fail1 = client.post(
+    # Neither participant nor the legacy transaction endpoint can manufacture
+    # provider-confirmed payment. A user-entered reference remains a report.
+    denied = client.post(
         f"/api/v1/trades/{txn_id}/transition",
         headers=auth_headers,
         json={"to_status": "PAYMENT_CONFIRMED"},
     )
-    assert r_fail1.status_code == 403
-
-    # 2. Buyer authorizes sandbox payment -> 200
-    r_pay = client.post(
-        f"/api/v1/trades/{txn_id}/transition",
+    assert denied.status_code == 409
+    denied_buyer = client.post(
+        f"/api/v1/transactions/{txn_id}/transition",
         headers=buyer_auth_headers,
-        json={"to_status": "PAYMENT_CONFIRMED", "reason": "Simulated sandbox payment authorized."},
+        json={"to_status": "PAYMENT_CONFIRMED"},
     )
-    assert r_pay.status_code == 200
-    assert r_pay.json()["data"]["status"] == "PAYMENT_CONFIRMED"
-    assert r_pay.json()["data"]["next_action"]["action_type"] == "PREPARE_DISPATCH"
+    assert denied_buyer.status_code == 409
 
-    # 3. Seller marks ready for dispatch -> 200
-    r_ready = client.post(
-        f"/api/v1/trades/{txn_id}/transition",
-        headers=auth_headers,
-        json={"to_status": "READY_FOR_DISPATCH", "reason": "Produce packed and ready."},
+    payment = client.post(
+        f"/api/v1/trades/{txn_id}/payment-reports",
+        headers={**buyer_auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={"amount": "108000.00", "reference": "USER-ENTERED-UTR-42", "currency": "INR"},
     )
-    assert r_ready.status_code == 200
-    assert r_ready.json()["data"]["status"] == "READY_FOR_DISPATCH"
+    assert payment.status_code == 201, payment.text
+    buyer_room = client.get(f"/api/v1/trades/{txn_id}/room", headers=buyer_auth_headers).json()["data"]
+    assert buyer_room["payment"]["provider_verified"] is False
+    assert buyer_room["payment"]["reports"][0]["reference"] == "USER-ENTERED-UTR-42"
+    assert buyer_room["status"] == "CREATED"
+    payment_id = buyer_room["payment"]["reports"][0]["id"]
 
-    # 4. Seller marks dispatched / in transit -> 200
-    r_transit = client.post(
-        f"/api/v1/trades/{txn_id}/transition",
-        headers=auth_headers,
-        json={"to_status": "IN_TRANSIT", "reason": "Dispatched towards buyer facility."},
+    ack = client.post(
+        f"/api/v1/trades/{txn_id}/payment-reports/{payment_id}/acknowledge",
+        headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
     )
-    assert r_transit.status_code == 200
-    assert r_transit.json()["data"]["status"] == "IN_TRANSIT"
+    assert ack.status_code == 201, ack.text
+    acknowledged = client.get(f"/api/v1/trades/{txn_id}/room", headers=auth_headers).json()["data"]
+    assert acknowledged["payment"]["status"] == "SELLER_ACKNOWLEDGED_REPORTED"
+    assert acknowledged["payment"]["provider_verified"] is False
 
-    # 5. Buyer confirms delivery arrival -> 200
-    r_deliv = client.post(
-        f"/api/v1/trades/{txn_id}/transition",
-        headers=buyer_auth_headers,
-        json={"to_status": "DELIVERED", "reason": "Shipment arrived at destination."},
+    dispatch = client.post(
+        f"/api/v1/trades/{txn_id}/logistics-updates",
+        headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={"kind": "DISPATCH_REPORTED", "details": "Seller statement only"},
     )
-    assert r_deliv.status_code == 200
-    assert r_deliv.json()["data"]["status"] == "DELIVERED"
-
-    # 6. Buyer finalizes acceptance & completion -> 200
-    r_comp = client.post(
-        f"/api/v1/trades/{txn_id}/transition",
-        headers=buyer_auth_headers,
-        json={"to_status": "COMPLETED", "reason": "Accepted quality and quantity."},
+    receipt = client.post(
+        f"/api/v1/trades/{txn_id}/logistics-updates",
+        headers={**buyer_auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={"kind": "RECEIPT_CONFIRMED", "details": "Buyer statement only"},
     )
-    assert r_comp.status_code == 200
-    assert r_comp.json()["data"]["status"] == "COMPLETED"
-    assert r_comp.json()["data"]["next_action"]["action_required"] is False
+    assert dispatch.status_code == 201
+    assert receipt.status_code == 201
+    room = client.get(f"/api/v1/trades/{txn_id}/room", headers=buyer_auth_headers).json()["data"]
+    assert room["status"] == "CREATED"
+    assert room["logistics"]["provider_connected"] is False
+    assert {event["event_type"] for event in room["timeline"]} >= {
+        "PAYMENT_REPORTED_SENT", "PAYMENT_RECEIPT_ACKNOWLEDGED", "LOGISTICS_DISPATCH_REPORTED", "LOGISTICS_RECEIPT_CONFIRMED"
+    }
 
 
 def test_add_trade_note(client, auth_headers, buyer_auth_headers):

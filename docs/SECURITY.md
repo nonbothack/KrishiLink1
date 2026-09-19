@@ -6,15 +6,19 @@ Secure-by-default; deny-by-default RBAC; never trust client `user_id/role/price/
 
 ## Auth (§13)
 
-- Argon2id (or bcrypt 12) hashing, never plaintext
-- JWT access 15m + refresh 7d with rotation, revocation list in Redis, `jti`
-- Secure cookies `HttpOnly, Secure, SameSite=Lax`, CSRF where cookie-based (double-submit)
-- Password reset + email verification architecture (token via outbox, expiry 1h)
-- No localStorage as source of truth
+- Passwords are Argon2/bcrypt hashed, never plaintext. New and reset passwords require at least 10 characters; existing accounts keep their established credential until changed.
+- Access tokens expire after 15 minutes. Refresh tokens expire after 7 days and rotate against a persisted session-family digest; reuse revokes the family. Password reset increments a credential version and revokes sessions.
+- Browser refresh secrets use `HttpOnly`, `SameSite=Strict` cookies and `Secure` in production, with Origin allowlisting and a double-submit CSRF token. This assumes the deployed frontend/API are same-site; verify the real host topology.
+- Indian mobile OTPs are short-lived, one-use and attempt-limited; codes and challenge phone keys are HMAC-digested. Production delivery and sensitive rate limits fail closed without configured SMS and Redis. Development code disclosure needs an explicit setting.
+- Password recovery grants are one-use digests. Production email recovery is unavailable until a delivery provider is configured; bearer secrets are not stored in outbox events.
+- The browser keeps access tokens in memory and stores only the minimum display identity needed for reload. `localStorage` is not the authentication source of truth.
+- Admin/staff second-factor authentication is not implemented and is a production decision/blocker for privileged accounts.
 
 ## RBAC (§14)
 
-Roles: `FARMER, FPO, BUYER, ADMIN, OPERATOR`. Decorator `require_role(...)` on every protected route. Ownership checks: farmer can only mutate own lots (`lot.owner_id == current_user.id`). Tests cover 401/403.
+Roles: `FARMER, FPO, BUYER, ADMIN, OPERATOR`. Self-registration permits only farmer, buyer and FPO; admin/operator provisioning stays privileged. Use `require_role(...)` on protected routes and enforce object ownership. Buyer/FPO profiles currently have one owner and no member model.
+
+The legacy `is_verified` fields are not proof of phone, email, identity, business, GST, bank or organization verification. Use dimension-specific `verification_records`; an admin review must include an evidence reference. Phone/email verification uses dedicated flows.
 
 ## Validation & Injection
 
@@ -38,6 +42,8 @@ Roles: `FARMER, FPO, BUYER, ADMIN, OPERATOR`. Decorator `require_role(...)` on e
 ## Data Minimization (§11)
 
 - No Aadhaar unless legal requirement; if needed, encrypted at rest (pgcrypto `pgp_sym_encrypt`, key in vault), never in API responses; audit access to sensitive fields
+- GPS is captured only after a user action and explicit consent, omitted from profile responses, and removable. Administrative geography is not inferred from coordinates.
+- Terms and privacy acknowledgements are versioned separately from optional marketing. Marketing is off by default; withdrawal preserves the evidence history. Policy drafts are not approved for production use.
 
 ## Audit Logging (§59)
 

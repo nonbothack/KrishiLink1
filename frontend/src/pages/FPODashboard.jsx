@@ -1,18 +1,194 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getFPOMembers,addFPOMember,getFPOLots,createFPOAggregatedLot,getCrops } from '../services/api';
+import {
+  addFPOMember, correctFPOIntake, createFPOIntake, createFPOPool, getCrops, getFPOIntakes,
+  getFPOLots, getFPOMembers, getFPOPools, getFPOTrades, getFPOTradeTrace,
+  importFPOMembers, previewFPOMemberImport, publishFPOPool,
+} from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { DataState, Field, Notice, PageHeading, useResource } from '../components/Experience';
-export default function FPODashboard(){
- const {user}=useAuth();const {t,cropT,money}=useLanguage();const members=useResource(getFPOMembers);const lots=useResource(getFPOLots);const crops=useResource(getCrops);
- const [adding,setAdding]=useState(false);const [form,setForm]=useState({farmer_name:'',phone:'',village:'',primary_crop:'',ready_quantity_qtl:'',grade:'B'});const [selected,setSelected]=useState([]);const [price,setPrice]=useState('');const [location,setLocation]=useState(user.location||'');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [review,setReview]=useState(false);
- const picked=members.data.filter(m=>selected.includes(m.id));const quantity=picked.reduce((sum,m)=>sum+Number(m.ready_quantity_qtl),0);const crop=picked[0]?.primary_crop;const same=picked.every(m=>m.primary_crop===crop&&m.grade===picked[0]?.grade);
- const change=(k,v)=>setForm({...form,[k]:v});
- async function add(e){e.preventDefault();setBusy(true);setError('');const res=await addFPOMember({...form,ready_quantity_qtl:Number(form.ready_quantity_qtl),district:user.district});setBusy(false);if(res.success){setAdding(false);setForm({farmer_name:'',phone:'',village:'',primary_crop:'',ready_quantity_qtl:'',grade:'B'});members.retry();}else setError(res.error);}
- async function combine(e){e.preventDefault();if(!review){setReview(true);return;}setBusy(true);setError('');const res=await createFPOAggregatedLot({crop,quantity,grade:picked[0].grade,unit:'quintal',asking_price:Number(price),location_text:location,district:user.district,member_ids:selected});setBusy(false);if(res.success){setSelected([]);setReview(false);members.retry();lots.retry();}else setError(res.error);}
- return <><PageHeading title={user.name||t('groupTitle')} description={t('fpoBenefit')} action={<button className="button" onClick={()=>setAdding(!adding)}>{t(adding?'cancel':'addMember')}</button>}/>{error&&<Notice error>{t(error)}</Notice>}{adding&&<form className="panel form-stack" style={{marginBottom:25}} onSubmit={add}><Field label={t('name')} required minLength={2} value={form.farmer_name} onChange={e=>change('farmer_name',e.target.value)}/><Field label={t('phone')} type="tel" inputMode="tel" value={form.phone} onChange={e=>change('phone',e.target.value)}/><Field label={t('location')} value={form.village} onChange={e=>change('village',e.target.value)}/><DataState loading={crops.loading} error={crops.error} onRetry={crops.retry}><Field label={t('crop')} as="select" required value={form.primary_crop} onChange={e=>change('primary_crop',e.target.value)}><option value="">{t('crop')}</option>{crops.data.map(c=><option key={c.id} value={c.name}>{cropT(c.name)}</option>)}</Field></DataState><div className="form-grid"><Field label={t('readyQty')} type="number" min=".001" step="any" inputMode="decimal" required value={form.ready_quantity_qtl} onChange={e=>change('ready_quantity_qtl',e.target.value)}/><Field label={t('grade')} as="select" value={form.grade} onChange={e=>change('grade',e.target.value)}>{['A','B','C'].map(g=><option key={g}>{g}</option>)}</Field></div><button className="button" disabled={busy||!!crops.error}>{t(busy?'loading':'addMember')}</button></form>}
- <div className="section-heading"><h2>{t('members')}</h2><button className="text-link" onClick={members.retry}>{t('refresh')}</button></div><DataState loading={members.loading} error={members.error} empty={!members.data.length} onRetry={members.retry}><div className="list-stack">{members.data.map(m=><label className="panel check-label" key={m.id}><input type="checkbox" disabled={busy||Number(m.ready_quantity_qtl)<=0} checked={selected.includes(m.id)} onChange={e=>{setReview(false);setSelected(s=>e.target.checked?[...s,m.id]:s.filter(id=>id!==m.id));}}/><span><strong>{m.farmer_name}</strong><br/>{cropT(m.primary_crop)} · {m.ready_quantity_qtl} {t('quintal')} · {m.grade}</span></label>)}</div></DataState>
- {!!picked.length&&<form className="panel form-stack" style={{marginBlock:25}} onSubmit={combine}><h2>{t('combine')}</h2><p>{cropT(crop)} · {quantity} {t('quintal')}</p>{!same&&<Notice error>{t('sameCropGrade')}</Notice>}<Field label={t('askingPrice')+' (₹ / '+t('quintal')+')'} type="number" required min=".01" step=".01" value={price} onChange={e=>{setPrice(e.target.value);setReview(false);}}/><Field label={t('location')} required minLength={2} value={location} onChange={e=>{setLocation(e.target.value);setReview(false);}}/>{review&&<div className="total-panel"><span>{t('grossTotal')}</span><strong>{money(quantity*Number(price))}</strong><p>{t('costNote')}</p></div>}<button className="button" disabled={!same||busy}>{t(busy?'loading':review?'publish':'review')}</button></form>}
- <div className="section-heading" style={{marginTop:32}}><h2>{t('groupLots')}</h2><Link className="text-link" to="/offers">{t('offers')}</Link></div><DataState loading={lots.loading} error={lots.error} empty={!lots.data.length} onRetry={lots.retry}><div className="list-stack">{lots.data.map(l=><article className="panel listing-row" key={l.id}><div><h3>{cropT(l.crop||l.crop_name)}</h3><p>{l.quantity} {t('quintal')}</p></div><span className="amount">{money(l.asking_price||0)}</span></article>)}</div></DataState></>;
+
+const newKey = () => crypto.randomUUID();
+
+export default function FPODashboard() {
+  const { user } = useAuth();
+  const { t, cropT } = useLanguage();
+  const members = useResource(getFPOMembers);
+  const intakes = useResource(getFPOIntakes);
+  const pools = useResource(getFPOPools);
+  const lots = useResource(getFPOLots);
+  const trades = useResource(getFPOTrades);
+  const crops = useResource(getCrops);
+  const [member, setMember] = useState({ farmer_name: '', primary_crop: '', grade: 'UNSPECIFIED' });
+  const [intake, setIntake] = useState({ member_id: '', crop: '', grade: 'UNSPECIFIED', gross_quantity: '', tare_quantity: '0', unit: 'kg' });
+  const [selected, setSelected] = useState({});
+  const [publish, setPublish] = useState({});
+  const [corrections, setCorrections] = useState({});
+  const [csv, setCsv] = useState('');
+  const [importPreview, setImportPreview] = useState(null);
+  const [trace, setTrace] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const intakeKey = useRef(newKey());
+  const poolKey = useRef(newKey());
+  const importKey = useRef(newKey());
+  const refresh = () => { members.retry(); intakes.retry(); pools.retry(); lots.retry(); trades.retry(); };
+  async function run(action) {
+    if (busy) return false;
+    setBusy(true); setError(''); setMessage('');
+    const response = await action();
+    setBusy(false);
+    if (response.success) { setMessage(response.message); refresh(); return true; }
+    setError(t('fpoErrorSave')); return false;
+  }
+  async function submitMember(event) {
+    event.preventDefault();
+    if (await run(() => addFPOMember(member))) setMember({ farmer_name: '', primary_crop: '', grade: 'UNSPECIFIED' });
+  }
+  async function submitIntake(event) {
+    event.preventDefault();
+    if (await run(() => createFPOIntake(intake, intakeKey.current))) {
+      intakeKey.current = newKey();
+      setIntake({ member_id: '', crop: '', grade: 'UNSPECIFIED', gross_quantity: '', tare_quantity: '0', unit: 'kg' });
+    }
+  }
+  async function makePool() {
+    const contributions = Object.entries(selected).filter(([, amount]) => Number(amount) > 0).map(([intake_id, quantity]) => ({ intake_id, quantity }));
+    if (!contributions.length) { setError(t('fpoPoolIntro')); return; }
+    if (await run(() => createFPOPool({ contributions }, poolKey.current))) { poolKey.current = newKey(); setSelected({}); }
+  }
+  async function previewImport() {
+    setBusy(true); setError(''); setMessage('');
+    const response = await previewFPOMemberImport(csv);
+    setBusy(false);
+    if (response.success) setImportPreview(response.data);
+    else setError(t('fpoErrorSave'));
+  }
+  async function loadCsvFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError(''); setImportPreview(null);
+    if (file.size > 1_048_576) { setCsv(''); setError(t('fpoCsvTooLarge')); return; }
+    try {
+      const contents = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
+      setCsv(contents.replace(/^\uFEFF/, ''));
+    } catch {
+      setCsv(''); setError(t('fpoCsvUtf8Error'));
+    }
+  }
+  async function confirmImport() {
+    if (await run(() => importFPOMembers(csv, importKey.current))) {
+      importKey.current = newKey(); setCsv(''); setImportPreview(null);
+    }
+  }
+  return (
+    <>
+      <PageHeading title={user.name || t('fpoDashboardTitle')} description={t('fpoDashboardIntro')} />
+      {error && <Notice error>{error}</Notice>}
+      {message && <Notice>{message}</Notice>}
+
+      <section className="panel form-stack" aria-labelledby="fpo-members-heading">
+        <h2 id="fpo-members-heading">1. {t('fpoMembers')}</h2>
+        <form className="form-grid" onSubmit={submitMember}>
+          <Field label={t('fpoMemberName')} required minLength={2} value={member.farmer_name} onChange={(event) => setMember({ ...member, farmer_name: event.target.value })} />
+          <Field label={t('fpoPrimaryCrop')} as="select" required value={member.primary_crop} onChange={(event) => setMember({ ...member, primary_crop: event.target.value })}>
+            <option value="">{t('selectCrop')}</option>{crops.data.map((crop) => <option key={crop.id} value={crop.name}>{cropT(crop.name)}</option>)}
+          </Field>
+          <Field label={t('grade')} as="select" value={member.grade} onChange={(event) => setMember({ ...member, grade: event.target.value })}>
+            {['A', 'B', 'C', 'UNSPECIFIED'].map((grade) => <option key={grade} value={grade}>{t(`grade_${grade}`)}</option>)}
+          </Field>
+          <button className="button" disabled={busy}>{busy ? t('loading') : t('fpoAddMember')}</button>
+        </form>
+        <DataState loading={members.loading} error={members.error} empty={members.data.length ? false : t('empty')} onRetry={members.retry}>
+          <ul className="list-stack">{members.data.map((item) => <li className="listing-row" key={item.id}><span><strong>{item.farmer_name}</strong> · {cropT(item.primary_crop)} · {item.grade}</span><span>{item.available_quantity_qtl} {t('quintal')}</span></li>)}</ul>
+        </DataState>
+        <details>
+          <summary>{t('fpoImport')}</summary>
+          <p>{t('fpoCsvHelp')}</p>
+          <Field label={t('fpoChooseCsv')} type="file" accept=".csv,text/csv" onChange={loadCsvFile} />
+          <Field label={t('fpoImport')} as="textarea" rows={5} value={csv} onChange={(event) => { setCsv(event.target.value); setImportPreview(null); }} />
+          <button className="button secondary" type="button" disabled={busy || !csv} onClick={previewImport}>{t('fpoPreviewImport')}</button>
+          {importPreview && <div role="status"><p>{t('fpoImportAccepted')}: {importPreview.accepted_count} · {t('fpoImportRejected')}: {importPreview.rejected_count}</p>
+            {importPreview.rejected.map((row) => <p key={`${row.row}-${row.member_code}`}>{t('fpoImportRejected')} {row.row}: {t('fpoImportRowInvalid')}</p>)}
+            {importPreview.accepted_count > 0 && <button className="button" type="button" disabled={busy} onClick={confirmImport}>{t('fpoConfirmImport')}</button>}
+          </div>}
+        </details>
+      </section>
+
+      <section className="panel form-stack" aria-labelledby="fpo-intake-heading">
+        <h2 id="fpo-intake-heading">2. {t('fpoIntake')}</h2><p>{t('fpoIntakeIntro')}</p>
+        <form className="form-grid" onSubmit={submitIntake}>
+          <Field label={t('fpoMembers')} as="select" required value={intake.member_id} onChange={(event) => setIntake({ ...intake, member_id: event.target.value })}>
+            <option value="">{t('fpoMembers')}</option>{members.data.map((item) => <option key={item.id} value={item.id}>{item.farmer_name}</option>)}
+          </Field>
+          <Field label={t('crop')} as="select" required value={intake.crop} onChange={(event) => setIntake({ ...intake, crop: event.target.value })}>
+            <option value="">{t('selectCrop')}</option>{crops.data.map((crop) => <option key={crop.id} value={crop.id}>{cropT(crop.name)}</option>)}
+          </Field>
+          <Field label={t('grade')} as="select" value={intake.grade} onChange={(event) => setIntake({ ...intake, grade: event.target.value })}>
+            {['A', 'B', 'C', 'UNSPECIFIED'].map((grade) => <option key={grade} value={grade}>{t(`grade_${grade}`)}</option>)}
+          </Field>
+          <Field label={t('fpoGross')} type="number" inputMode="decimal" min=".001" step=".001" required value={intake.gross_quantity} onChange={(event) => setIntake({ ...intake, gross_quantity: event.target.value })} />
+          <Field label={t('fpoTare')} type="number" inputMode="decimal" min="0" step=".001" value={intake.tare_quantity} onChange={(event) => setIntake({ ...intake, tare_quantity: event.target.value })} />
+          <Field label={t('unit')} as="select" value={intake.unit} onChange={(event) => setIntake({ ...intake, unit: event.target.value })}><option value="kg">kg</option><option value="quintal">{t('quintal')}</option></Field>
+          <button className="button" disabled={busy}>{busy ? t('loading') : t('fpoReceipt')}</button>
+        </form>
+        <DataState loading={intakes.loading} error={intakes.error} empty={intakes.data.length ? false : t('fpoNoReceipts')} onRetry={intakes.retry}>
+          <div className="list-stack">{intakes.data.map((item) => <article className="panel" key={item.id}>
+            <strong>{t('fpoReceiptId')}: {item.receipt_id}</strong>
+            <p>{cropT(item.crop)} · {t('fpoGross')}: {item.gross_quantity} {item.unit} · {t('fpoTare')}: {item.tare_quantity} {item.unit}</p>
+            <p>{t('fpoNet')}: {item.net_quantity} {item.unit} · {item.canonical_quantity_qtl} {t('quintal')} · {t('fpoAvailable')}: {item.available_quantity_qtl}</p>
+            {item.correction_of_receipt_id && <p>{t('fpoCorrected')} {item.correction_of_receipt_id}</p>}
+            {item.is_voided ? <p>{t('fpoCorrected')} {item.corrected_by_receipt_id}</p> : item.available_quantity_qtl === item.canonical_quantity_qtl && <details><summary>{t('fpoCorrectReceipt')}</summary>
+              <Field label={t('fpoGross')} type="number" min=".001" step=".001" value={corrections[item.id]?.gross_quantity || ''} onChange={(event) => setCorrections({ ...corrections, [item.id]: { ...corrections[item.id], gross_quantity: event.target.value } })} />
+              <Field label={t('fpoCorrectionReason')} value={corrections[item.id]?.reason || ''} onChange={(event) => setCorrections({ ...corrections, [item.id]: { ...corrections[item.id], reason: event.target.value } })} />
+              <button className="button secondary" type="button" disabled={busy} onClick={() => run(() => correctFPOIntake(item.id, { gross_quantity: corrections[item.id]?.gross_quantity, tare_quantity: item.tare_quantity, reason: corrections[item.id]?.reason }, newKey()))}>{t('fpoCorrectReceipt')}</button>
+            </details>}
+          </article>)}</div>
+        </DataState>
+      </section>
+
+      <section className="panel form-stack" aria-labelledby="fpo-pool-heading">
+        <h2 id="fpo-pool-heading">3. {t('fpoPool')}</h2><p>{t('fpoPoolIntro')}</p>
+        <DataState loading={intakes.loading} error={intakes.error} empty={intakes.data.length ? false : t('fpoNoReceipts')} onRetry={intakes.retry}>
+          <div className="list-stack">{intakes.data.filter((item) => Number(item.available_quantity_qtl) > 0).map((item) => <div className="listing-row" key={item.id}>
+            <span><strong>{item.receipt_id}</strong> · {cropT(item.crop)} · {item.grade}<br />{t('fpoAvailable')}: {item.available_quantity_qtl} {t('quintal')}</span>
+            <Field label={`${t('fpoContribution')} · ${item.receipt_id}`} type="number" min="0" max={item.available_quantity_qtl} step=".001" value={selected[item.id] || ''} onChange={(event) => setSelected({ ...selected, [item.id]: event.target.value })} />
+          </div>)}</div>
+          <button className="button" type="button" disabled={busy} onClick={makePool}>{t('fpoCreatePool')}</button>
+        </DataState>
+        <DataState loading={pools.loading} error={pools.error} empty={pools.data.length ? false : t('fpoNoPools')} onRetry={pools.retry}>
+          <div className="list-stack">{pools.data.map((pool) => <article className="listing-row" key={pool.id}>
+            <span><strong>{pool.pool_id}</strong> · {cropT(pool.crop)} · {pool.grade} · {pool.quantity_qtl} {t('quintal')} · {t(`pool_${pool.status}`)}</span>
+            {pool.status === 'READY' && <div className="form-stack">
+              <Field label={`${t('fpoAskingPrice')} · ${pool.pool_id}`} type="number" min=".01" step=".01" value={publish[pool.id]?.asking_price || ''} onChange={(event) => setPublish({ ...publish, [pool.id]: { ...publish[pool.id], asking_price: event.target.value } })} />
+              <Field label={`${t('fpoLocation')} · ${pool.pool_id}`} value={publish[pool.id]?.location_text || ''} onChange={(event) => setPublish({ ...publish, [pool.id]: { ...publish[pool.id], location_text: event.target.value } })} />
+              <button className="button" type="button" disabled={busy} onClick={() => run(() => publishFPOPool(pool.id, publish[pool.id], newKey()))}>{t('fpoPublish')}</button>
+            </div>}
+          </article>)}</div>
+        </DataState>
+      </section>
+
+      <section className="panel form-stack"><h2>{t('groupLots')}</h2>
+        <DataState loading={lots.loading} error={lots.error} empty={lots.data.length ? false : t('empty')} onRetry={lots.retry}>
+          <div className="list-stack">{lots.data.map((lot) => <Link className="listing-row" to="/offers" key={lot.id}><span><strong>{lot.public_id}</strong> · {cropT(lot.crop)} · {lot.quantity} {t('quintal')}</span><strong>{t(`status_${lot.status}`) || lot.status}</strong></Link>)}</div>
+        </DataState>
+        <Link className="text-link" to="/offers">{t('fpoOffers')}</Link>
+      </section>
+
+      <section className="panel form-stack"><h2>{t('fpoTrades')}</h2>
+        <DataState loading={trades.loading} error={trades.error} empty={trades.data.length ? false : t('fpoNoTrades')} onRetry={trades.retry}>
+          <div className="list-stack">{trades.data.map((trade) => <article className="panel" key={trade.id}>
+            <h3>{cropT(trade.crop)} · {trade.trade_reference}</h3><p>{t(`status_${trade.status}`) || trade.status} · {trade.gross}</p>
+            <Link className="button secondary" to={`/trades/${trade.id}`}>{t('fpoTradeRoom')}</Link>
+            <button className="text-link" type="button" onClick={async () => { const result = await getFPOTradeTrace(trade.id); if (result.success) setTrace({ ...trace, [trade.id]: result.data }); else setError(t('fpoErrorLoad')); }}>{t('fpoTradeTrace')}</button>
+            {trace[trade.id] && <div aria-label={t('fpoProjectedAllocation')}><h4>{t('fpoProjectedAllocation')} · {trace[trade.id].quantity_qtl} {t('quintal')} · {trace[trade.id].gross}</h4>
+              <ul>{trace[trade.id].allocations.map((allocation) => <li key={allocation.contribution_id}>{allocation.member_name} · {allocation.intake_receipt_id} · {allocation.sold_quantity_qtl} {t('quintal')} · {allocation.gross_allocation}</li>)}</ul>
+            </div>}
+          </article>)}</div>
+        </DataState>
+      </section>
+    </>
+  );
 }

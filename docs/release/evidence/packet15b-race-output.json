@@ -1,0 +1,289 @@
+{
+  "database": "localhost:5435/krishilink_packet15b",
+  "checks": [
+    {
+      "name": "lot_overallocation",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "4e5e6828-775e-448a-82e0-ab227b86fa13",
+              "status": "ACCEPTED",
+              "reservation_id": "5eea4000-72dd-454d-b3f2-abec6f35ef9b",
+              "transaction_id": "a3f0c7ff-cc20-42d2-99fc-2ef6b5386715"
+            },
+            "message": "Offer accepted and order created",
+            "request_id": "f995bb8c-ba71-43c3-8e80-006e99a8260d"
+          }
+        },
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Offer not pending"
+        }
+      ],
+      "transactions": 1,
+      "reserved": "8.00",
+      "invariant": true
+    },
+    {
+      "name": "requirement_overfill",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "e67a977b-0408-429d-95b5-e5beeb7d0282",
+              "status": "ACCEPTED",
+              "reservation_id": "54f5f2e6-acc2-4ca5-b601-3e70f887a430",
+              "transaction_id": "a46cfa39-9998-4323-b3d6-5785214439ae"
+            },
+            "message": "Offer accepted and order created",
+            "request_id": "f948e9ce-4a3b-44bd-83ed-ceba8671e56c"
+          }
+        },
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Offer would exceed the remaining requirement quantity"
+        }
+      ],
+      "committed": "8.00",
+      "requested": "10.00",
+      "invariant": true
+    },
+    {
+      "name": "accept_vs_withdraw",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "d9ccff3c-9f7f-42f1-908e-18cda4b2456d",
+              "status": "CANCELLED"
+            },
+            "message": "Offer withdrawn",
+            "request_id": "25248c83-d264-4a69-9deb-50c46e1495aa"
+          }
+        },
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Offer not pending"
+        }
+      ],
+      "final_status": "CANCELLED",
+      "invariant": true
+    },
+    {
+      "name": "accept_vs_counter",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "78c90ec8-8415-4363-9d6d-998ec6284caa",
+              "status": "PENDING",
+              "parent_offer_id": "5901c9b3-c90f-466e-81e6-cfdd4a2104d2"
+            },
+            "message": "Counter offer created",
+            "request_id": "ddf15675-adff-42ff-8f43-f6423c580128"
+          }
+        },
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "5901c9b3-c90f-466e-81e6-cfdd4a2104d2",
+              "status": "ACCEPTED",
+              "reservation_id": "ebf6e0ea-79e6-48f5-9c5c-821bb2845e46",
+              "transaction_id": "cb2b743b-7104-48ed-bb1b-0c2a8d8c22c4"
+            },
+            "message": "Offer accepted and order created",
+            "request_id": "4d647bdb-eb75-4854-bd34-d67e411965b0"
+          }
+        }
+      ],
+      "final_status": "ACCEPTED",
+      "invariant": true
+    },
+    {
+      "name": "expired_offer",
+      "outcomes": [
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Offer has expired"
+        },
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Offer has expired"
+        }
+      ],
+      "transactions": 0,
+      "invariant": true
+    },
+    {
+      "name": "duplicate_accept_idempotency",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "2dd9db0e-7304-4db5-8a36-9edc07ab90d2",
+              "status": "ACCEPTED",
+              "reservation_id": "3dd1a9e0-adcb-4ccc-b06e-26e2c823143a",
+              "transaction_id": "a21ba589-66e9-4175-875a-cb7bf463c5ee"
+            },
+            "message": "Offer accepted and order created",
+            "request_id": "cc0aa5f9-7424-425f-a8b1-7919bc587ebd"
+          }
+        },
+        {
+          "ok": true,
+          "value": {
+            "data": {
+              "id": "2dd9db0e-7304-4db5-8a36-9edc07ab90d2",
+              "status": "ACCEPTED",
+              "reservation_id": "3dd1a9e0-adcb-4ccc-b06e-26e2c823143a",
+              "transaction_id": "a21ba589-66e9-4175-875a-cb7bf463c5ee"
+            },
+            "message": "Offer accepted and order created",
+            "success": true,
+            "request_id": "cc0aa5f9-7424-425f-a8b1-7919bc587ebd"
+          }
+        }
+      ],
+      "transactions": 1,
+      "keys": 1,
+      "invariant": true
+    },
+    {
+      "name": "fpo_intake_contribution_race",
+      "outcomes": [
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Pool contribution exceeds available intake quantity"
+        },
+        {
+          "ok": true,
+          "value": {
+            "id": "92048c22-48df-48b4-9d1b-0763c565dd22",
+            "pool_id": "KL-POOL-695DF9D623",
+            "crop": "Packet Onion 1dcf6e",
+            "grade": "A",
+            "quantity_qtl": "6.000",
+            "status": "READY",
+            "lot_id": null,
+            "contribution_count": 1,
+            "created_at": "2026-09-19T11:43:26.812433+00:00"
+          }
+        }
+      ],
+      "pools": 1,
+      "contributed": "6.000",
+      "invariant": true
+    },
+    {
+      "name": "fpo_pool_sale_allocation_rounding",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "d03ee8d4-23ed-4476-b597-0b3c7ae75506",
+              "status": "ACCEPTED",
+              "reservation_id": "e70d897b-87f8-4309-941b-27d8180f4e63",
+              "transaction_id": "51ae9a74-a9f1-4ad5-98c8-1e284c7edfc9"
+            },
+            "message": "Offer accepted and order created",
+            "request_id": "cc01a865-7283-4f22-87ce-71012c89fc59"
+          }
+        },
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Offer not pending"
+        }
+      ],
+      "allocated_quantity": "1.000",
+      "allocated_gross": "101.00",
+      "invariant": true
+    },
+    {
+      "name": "web_push_deduplicated_delivery",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "status": "COMPLETED",
+            "delivered": 0,
+            "retryable": 0
+          }
+        },
+        {
+          "ok": true,
+          "value": {
+            "status": "COMPLETED",
+            "delivered": 0,
+            "retryable": 0
+          }
+        }
+      ],
+      "deliveries": 1,
+      "attempts": 1,
+      "invariant": true
+    },
+    {
+      "name": "fraud_case_decision_race",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": {
+            "success": true,
+            "data": {
+              "id": "f98b7e04-9dc7-45a9-bcab-b4c256987d23",
+              "status": "RESOLVED",
+              "decision": "reviewed"
+            },
+            "message": "Fraud review decision recorded"
+          }
+        },
+        {
+          "ok": false,
+          "status": 409,
+          "detail": "Fraud review case is already closed"
+        }
+      ],
+      "final_status": "RESOLVED",
+      "invariant": true
+    },
+    {
+      "name": "outbox_multi_worker_claim",
+      "outcomes": [
+        {
+          "ok": true,
+          "value": "SKIPPED"
+        },
+        {
+          "ok": true,
+          "value": "CLAIMED"
+        }
+      ],
+      "invariant": true
+    }
+  ],
+  "started_at": "2026-09-19T11:43:26.416260+00:00",
+  "passed": true,
+  "finished_at": "2026-09-19T11:43:27.021024+00:00"
+}

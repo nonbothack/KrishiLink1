@@ -1,4 +1,3 @@
-import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -15,7 +14,9 @@ from app.modules.auth.router import router as auth_router
 from app.modules.crops.router import router as crops_router
 from app.modules.disputes.router import router as disputes_router
 from app.modules.fpo.router import router as fpo_router
+from app.modules.geography.router import router as geography_router
 from app.modules.health.router import router as health_router
+from app.modules.intelligence.router import router as intelligence_router
 from app.modules.lots.router import router as lots_router
 from app.modules.markets.router import router as markets_router
 from app.modules.matching.router import router as matching_router
@@ -24,25 +25,17 @@ from app.modules.metrics.router import router as metrics_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.offers.router import router as offers_router
 from app.modules.prices.router import router as prices_router
+from app.modules.privacy.router import router as privacy_router
+from app.modules.requirements.router import router as requirements_router
 from app.modules.reservations.router import router as reservations_router
 from app.modules.storage.router import router as storage_router
 from app.modules.trades.router import router as trades_router
 from app.modules.transactions.router import router as transactions_router
 from app.modules.users.router import router as users_router
 
-logger = logging.getLogger(__name__)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.agmarknet_api_key or settings.mandi_api_key:
-        from app.core.database import SessionLocal
-        from app.modules.prices.sync_service import sync_daily_prices
-        with SessionLocal() as db:
-            try:
-                sync_daily_prices(db)
-            except Exception:
-                logger.warning("Initial market sync failed; dated records remain available")
     yield
 
 
@@ -88,8 +81,12 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(users_router, prefix=settings.api_v1_prefix)
     app.include_router(crops_router, prefix=settings.api_v1_prefix)
+    app.include_router(geography_router, prefix=settings.api_v1_prefix)
     app.include_router(markets_router, prefix=settings.api_v1_prefix)
     app.include_router(prices_router, prefix=settings.api_v1_prefix)
+    app.include_router(intelligence_router, prefix=settings.api_v1_prefix)
+    app.include_router(privacy_router, prefix=settings.api_v1_prefix)
+    app.include_router(requirements_router, prefix=settings.api_v1_prefix)
     app.include_router(lots_router, prefix=settings.api_v1_prefix)
     app.include_router(fpo_router, prefix=settings.api_v1_prefix)
     app.include_router(matching_router, prefix=settings.api_v1_prefix)

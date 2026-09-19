@@ -5,22 +5,29 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-service-worker.mjs && node scripts/prerender-public.mjs && node scripts/check-seo-rendering.mjs && node scripts/check-price-key-secrecy.mjs && node scripts/check-offline-safety.mjs",
+    "prerender": "node scripts/prerender-public.mjs",
+    "check:seo": "node scripts/check-seo-rendering.mjs",
+    "test:seo-fixture": "node scripts/test-prerender-fixture.mjs",
     "lint": "oxlint",
     "test": "vitest run",
     "test:e2e": "node scripts/run-e2e.mjs",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css}\" \"scripts/**/*.{js,mjs}\" \"e2e/**/*.js\" \"*.{js,json,html}\"",
+    "typecheck": "tsc --noEmit",
+    "check:security": "node scripts/check-security-headers.mjs",
+    "check:offline": "node scripts/check-offline-safety.mjs",
+    "check:pwa": "node scripts/check-pwa-browser.mjs",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.3",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.34.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.18.2",
-    "recharts": "^3.10.1",
-    "tailwindcss": "^4.3.3"
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -34,6 +41,8 @@
     "@vitejs/plugin-react": "^6.1.0",
     "jsdom": "^29.1.1",
     "oxlint": "^1.79.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
     "vite": "^8.2.2",
     "vitest": "^5.0.1"
   }

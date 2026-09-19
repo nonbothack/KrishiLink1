@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearSession, dashboardFor, normalizeIdentifier, normalizePhone, readSession, safeNext } from './session';
+import {
+  clearSession,
+  dashboardFor,
+  normalizeIdentifier,
+  normalizePhone,
+  readSession,
+  safeNext,
+} from './session';
 
 describe('session helpers', () => {
   beforeEach(() => localStorage.clear());
@@ -13,6 +20,8 @@ describe('session helpers', () => {
   it('keeps post-login navigation inside known application routes', () => {
     expect(dashboardFor('farmer')).toBe('/farmer/dashboard');
     expect(safeNext('/sell?crop=Onion', 'farmer')).toBe('/sell?crop=Onion');
+    expect(safeNext('/farmer/price-alerts', 'farmer')).toBe('/farmer/price-alerts');
+    expect(safeNext('/farmer/price-alerts', 'buyer')).toBe('/buyer/dashboard');
     expect(safeNext('//malicious.example', 'farmer')).toBe('/farmer/dashboard');
     expect(safeNext('/admin', 'buyer')).toBe('/buyer/dashboard');
   });

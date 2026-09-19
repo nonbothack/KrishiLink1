@@ -4,8 +4,13 @@
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "bundler",
+    "module": "ESNext",
     "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
-  }
+    "skipLibCheck": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

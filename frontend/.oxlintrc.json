@@ -1,1 +1,1 @@
-{"rules": {"react/set-state-in-effect": "off", "react/only-export-components": "off"}}
+{ "rules": { "react/set-state-in-effect": "off", "react/only-export-components": "off" } }

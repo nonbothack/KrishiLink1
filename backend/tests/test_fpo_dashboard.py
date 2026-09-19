@@ -39,19 +39,22 @@ def test_fpo_members_list_and_create(client, fpo_auth_headers):
     res2 = r2.json()
     assert res2["success"] is True
     assert res2["data"]["farmer_name"] == "Tukaram Shinde"
-    assert res2["data"]["ready_quantity_qtl"] == 180.0
+    # Member roster quantity hints are not the authoritative inventory ledger.
+    assert res2["data"]["grade"] == "A"
+    listed = client.get("/api/v1/fpo/members", headers=fpo_auth_headers).json()["data"]
+    created = next(item for item in listed if item["id"] == res2["data"]["id"])
+    assert created["available_quantity_qtl"] == "0"
 
 
-def test_fpo_aggregate_lot(client, fpo_auth_headers):
-    # Explicit fixtures: real groups must start empty, not receive invented members.
-    member_ids = []
+def test_fpo_aggregate_lot_requires_persisted_intake_pool(client, fpo_auth_headers):
+    # Legacy member quantity values must not fabricate inventory or bypass the ledger.
+    before = client.get("/api/v1/fpo/lots", headers=fpo_auth_headers).json()["data"]
     for index, quantity in enumerate((200, 300)):
         response = client.post("/api/v1/fpo/members", headers=fpo_auth_headers, json={
             "farmer_name": f"Aggregation test member {index}",
             "primary_crop": "Onion", "ready_quantity_qtl": quantity, "grade": "A",
         })
         assert response.status_code == 201
-        member_ids.append(response.json()["data"]["id"])
 
     aggregate_payload = {
         "crop": "Onion",
@@ -61,27 +64,13 @@ def test_fpo_aggregate_lot(client, fpo_auth_headers):
         "asking_price": 1950.0,
         "location_text": "Nashik FPO Central Hub",
         "district": "Nashik",
-        "member_ids": member_ids,
+        "member_ids": [],
         "notes": "Bulk Grade A Onion collection from certified members",
     }
     r = client.post("/api/v1/fpo/aggregate-lot", json=aggregate_payload, headers=fpo_auth_headers)
-    assert r.status_code == 201
-    res = r.json()
-    assert res["success"] is True
-    data = res["data"]
-    assert data["public_id"].startswith("KL-LOT-")
-    assert data["crop"] == "Onion"
-    assert data["quantity"] == 500.0
-    assert data["asking_price"] == 1950.0
-
-    duplicate = client.post("/api/v1/fpo/aggregate-lot", json=aggregate_payload, headers=fpo_auth_headers)
-    assert duplicate.status_code == 409
-
-    # Verify lot appears in FPO's lots list
-    r_lots = client.get("/api/v1/fpo/lots", headers=fpo_auth_headers)
-    assert r_lots.status_code == 200
-    lots = r_lots.json()["data"]
-    assert any(l["id"] == data["id"] for l in lots)
+    assert r.status_code == 409
+    # Supplied member_ids and quantities cannot create a lot without receipts.
+    assert client.get("/api/v1/fpo/lots", headers=fpo_auth_headers).json()["data"] == before
 
 
 def test_fpo_endpoints_rbac_protection(client, auth_headers):

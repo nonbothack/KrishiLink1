@@ -1,0 +1,63 @@
+{
+  "run_type": "CLEAN_STEADY_STATE_RUN",
+  "started_at": "2026-09-19T11:00:25.947097+00:00",
+  "finished_at": "2026-09-19T11:30:31.885823+00:00",
+  "duration_seconds": 1800,
+  "target_rps": 5.0,
+  "requests": 8997,
+  "codes": {
+    "200": 8997
+  },
+  "errors": 0,
+  "p50_ms": 6.589099997654557,
+  "p95_ms": 8.888700045645237,
+  "p99_ms": 12.92250002734363,
+  "max_ms": 112.23020008765161,
+  "resource_start": {
+    "containers": {
+      "krishilink_packet15-backend-1": {
+        "memory": "244.9MiB / 7.448GiB",
+        "cpu": "0.46%"
+      },
+      "krishilink_packet15-scheduler-1": {
+        "memory": "44.75MiB / 7.448GiB",
+        "cpu": "1.11%"
+      },
+      "krishilink_packet15-worker-1": {
+        "memory": "464.7MiB / 7.448GiB",
+        "cpu": "0.50%"
+      }
+    },
+    "postgres_connections": "10",
+    "outbox_pending": "0",
+    "redis_used_memory_bytes": "2226352",
+    "redis_key_count": "1099",
+    "celery_keys": 1096
+  },
+  "resource_end": {
+    "containers": {
+      "krishilink_packet15-backend-1": {
+        "memory": "246.5MiB / 7.448GiB",
+        "cpu": "0.42%"
+      },
+      "krishilink_packet15-scheduler-1": {
+        "memory": "44.94MiB / 7.448GiB",
+        "cpu": "0.00%"
+      },
+      "krishilink_packet15-worker-1": {
+        "memory": "527MiB / 7.448GiB",
+        "cpu": "0.17%"
+      }
+    },
+    "postgres_connections": "11",
+    "outbox_pending": "0",
+    "redis_used_memory_bytes": "2350160",
+    "redis_key_count": "1521",
+    "celery_keys": 1518
+  },
+  "criteria": {
+    "no_planned_outage": true,
+    "error_rate_max": 0,
+    "http_5xx_max": 0
+  }
+}

@@ -23,7 +23,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         elif "string does not match regex" in msg or "phone" in str(field).lower():
             err_msgs.append("Phone number must be a 10-digit number (e.g. 9876543210)")
         elif "at least" in msg and "character" in msg:
-            err_msgs.append(f"{field.replace('_', ' ').capitalize()} must be at least 6 characters")
+            minimum = 10 if str(field) in {"password", "new_password"} else 6
+            err_msgs.append(f"{field.replace('_', ' ').capitalize()} must be at least {minimum} characters")
         else:
             err_msgs.append(f"{field.replace('_', ' ').capitalize()}: {msg}")
 
@@ -35,7 +36,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "data": None,
             "message": friendly_message,
             "code": "VALIDATION_ERROR",
-            "details": exc.errors(),
+            # Validation errors may contain submitted values and non-JSON-safe
+            # exception objects. Return only schema locations and plain messages.
+            "details": [
+                {
+                    "type": str(error.get("type", "value_error")),
+                    "loc": [str(part) for part in error.get("loc", [])],
+                    "msg": str(error.get("msg", "Invalid value")),
+                }
+                for error in exc.errors()
+            ],
             "request_id": rid,
         },
     )

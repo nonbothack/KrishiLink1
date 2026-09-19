@@ -52,11 +52,12 @@ def test_sms_service_demo_mode():
             price_per_unit=6125,
             order_id="c726c042",
         )
-        assert res["success"] is True
+        assert res["success"] is False
         assert res["status"] == "DEMO"
         assert res["provider"] == "demo"
-        assert "Namaste Ramesh Patil" in res["message"]
-        assert "Onion (100 qtl @ Rs 6,125/qtl)" in res["message"]
+        assert "no carrier" in res["detail"]
+        assert "phone" not in res
+        assert "message" not in res
 
 
 def test_sms_service_fast2sms_success():
@@ -126,7 +127,7 @@ def test_celery_dispatch_deal_confirmation_sms_task():
     }
     with patch.object(settings, "sms_enabled", False):
         res = dispatch_deal_confirmation_sms(payload)
-        assert res["success"] is True
+        assert res["success"] is False
         assert res["status"] == "DEMO"
 
 
@@ -134,9 +135,10 @@ def test_sms_service_send_raw_sms():
     # Demo mode test
     with patch.object(settings, "sms_enabled", False):
         res = SMSService.send_raw_sms("9820019061", "Live test from KrishiLink")
-        assert res["success"] is True
+        assert res["success"] is False
         assert res["status"] == "DEMO"
-        assert res["phone"] == "+919820019061"
+        assert "phone" not in res
+        assert "message" not in res
 
     # Invalid phone test
     res = SMSService.send_raw_sms("123", "Invalid number")
@@ -194,11 +196,18 @@ def test_notifications_test_sms_endpoint(client):
             json={"phone": "9820019061", "message": "KrishiLink SIH demo test"},
             headers=headers,
         )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["success"] is True
-        assert body["data"]["status"] == "DEMO"
-        assert body["data"]["provider"] == "demo"
+        assert resp.status_code == 403
+
+
+def test_notifications_have_no_remote_offer_trade_or_account_action_routes():
+    from app.main import app
+
+    notification_paths = [route.path.lower() for route in app.routes if "/notifications" in route.path.lower()]
+    assert notification_paths
+    assert not any(
+        any(action in path for action in ("inbound", "whatsapp", "voice", "/action", "/accept", "/counter", "/payment"))
+        for path in notification_paths
+    )
 
 
 def test_sms_service_send_offer_received_sms():
@@ -211,10 +220,9 @@ def test_sms_service_send_offer_received_sms():
             quantity=50,
             price_per_unit=5800,
         )
-        assert res["success"] is True
+        assert res["success"] is False
         assert res["status"] == "DEMO"
-        assert "Namaste Ramesh Patil" in res["message"]
-        assert "50 qtl @ Rs 5,800/qtl" in res["message"]
+        assert "no carrier" in res["detail"]
 
     # Missing phone
     res_skip = SMSService.send_offer_received_sms(
@@ -238,7 +246,7 @@ def test_celery_dispatch_offer_received_sms_task():
     }
     with patch.object(settings, "sms_enabled", False):
         res = dispatch_offer_received_sms(payload)
-        assert res["success"] is True
+        assert res["success"] is False
         assert res["status"] == "DEMO"
 
 
@@ -252,10 +260,9 @@ def test_sms_service_send_buyer_deal_confirmation():
             price_per_unit=2450.0,
             order_id="TEST01",
         )
-        assert res["success"] is True
+        assert res["success"] is False
         assert res["status"] == "DEMO"
-        assert "Mehta Traders" in res["message"]
-        assert "TEST01" in res["message"]
+        assert "no carrier" in res["detail"]
 
 
 def test_sms_service_smsgate_cloud_success():
@@ -414,10 +421,7 @@ def test_sms_service_smsgate_http_error():
         assert "Device queue limit exceeded" in res["detail"]
 
 
-def test_notifications_test_sms_endpoint_with_smsgate(client):
-    login_resp = client.post("/api/v1/auth/login", json={"email": "ramesh@demo.com", "password": "demo123!"})
-    token = login_resp.json()["data"]["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+def test_notifications_test_sms_endpoint_with_smsgate(client, admin_auth_headers):
 
     smsgate_result = {
         "success": True,
@@ -431,7 +435,7 @@ def test_notifications_test_sms_endpoint_with_smsgate(client):
         resp = client.post(
             "/api/v1/notifications/test-sms",
             json={"phone": "9820019061", "message": "KrishiLink live gateway test"},
-            headers=headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code == 200
         body = resp.json()

@@ -1,0 +1,70 @@
+const terms = {
+  en: {
+    title: 'Terms of Service',
+    draft: 'DRAFT — PENDING LEGAL REVIEW. This document is incomplete and is not approved for production use.',
+    sections: [
+      ['Purpose of this draft', 'This page is a review framework for the service terms. It is not a complete contract and does not create final legal terms.'],
+      ['Items requiring approval', 'Before production, legal reviewers must confirm the service role, eligibility, account and verification rules, listing and prohibited-produce rules, fees, offer formation, quality and weighment rules, delivery and risk allocation, payment timelines, cancellations, liability, disputes, suspension, governing law and e-commerce disclosures.'],
+      ['Current product behavior', 'KrishiLink provides software for agricultural market information and participant workflows. A displayed account or phone check does not mean a business, bank account or organization has been verified.'],
+      ['Contact and complaints', 'The responsible legal entity, grievance contact, address and complaint process have not been approved for publication. They will be added only after the organization confirms the details.'],
+    ],
+  },
+  mr: {
+    title: 'सेवा अटी',
+    draft: 'मसुदा — कायदेशीर पुनरावलोकन प्रलंबित. हा दस्तऐवज अपूर्ण आहे आणि उत्पादनासाठी मंजूर नाही.',
+    sections: [
+      ['या मसुद्याचा उद्देश', 'ही सेवा अटींच्या पुनरावलोकनासाठीची चौकट आहे. हा पूर्ण करार नाही आणि अंतिम कायदेशीर अटी ठरवत नाही.'],
+      ['मंजुरी आवश्यक असलेले मुद्दे', 'उत्पादन सुरू करण्यापूर्वी सेवा भूमिका, पात्रता, खाते व पडताळणी नियम, विक्री नोंद व प्रतिबंधित माल, शुल्क, प्रस्ताव कधी मान्य होतो, गुणवत्ता व वजन नियम, वितरण व जोखीम, पेमेंट वेळा, रद्द करणे, जबाबदारी, वाद, खाते बंद करणे, लागू कायदा आणि ई-कॉमर्स माहिती यांना कायदेशीर मंजुरी आवश्यक आहे.'],
+      ['सध्याचे उत्पादन वर्तन', 'KrishiLink कृषी बाजार माहिती आणि वापरकर्त्यांच्या प्रक्रियांसाठी सॉफ्टवेअर देते. खाते किंवा फोन तपासणी दिसणे म्हणजे व्यवसाय, बँक खाते किंवा संस्था सत्यापित झाली असा अर्थ नाही.'],
+      ['संपर्क आणि तक्रारी', 'जबाबदार कायदेशीर संस्था, तक्रार संपर्क, पत्ता आणि तक्रार प्रक्रिया प्रकाशनासाठी मंजूर झालेली नाही. संस्थेने तपशील निश्चित केल्यानंतरच ते जोडले जातील.'],
+    ],
+  },
+  hi: {
+    title: 'सेवा की शर्तें',
+    draft: 'मसौदा — कानूनी समीक्षा लंबित। यह दस्तावेज़ अधूरा है और उत्पादन उपयोग के लिए स्वीकृत नहीं है।',
+    sections: [
+      ['इस मसौदे का उद्देश्य', 'यह सेवा की शर्तों की समीक्षा के लिए एक रूपरेखा है। यह पूरा अनुबंध नहीं है और अंतिम कानूनी शर्तें तय नहीं करता।'],
+      ['जिन बातों की मंज़ूरी बाकी है', 'उत्पादन से पहले सेवा की भूमिका, पात्रता, खाते और सत्यापन नियम, लिस्टिंग और प्रतिबंधित उपज, शुल्क, प्रस्ताव बनने का समय, गुणवत्ता और तौल नियम, डिलीवरी और जोखिम, भुगतान समय, रद्दीकरण, दायित्व, विवाद, खाता निलंबन, लागू कानून और ई-कॉमर्स जानकारी की कानूनी समीक्षा ज़रूरी है।'],
+      ['मौजूदा उत्पाद व्यवहार', 'KrishiLink कृषि बाज़ार की जानकारी और उपयोगकर्ता प्रक्रियाओं के लिए सॉफ़्टवेयर देता है। खाता या फोन जाँच दिखने का अर्थ यह नहीं कि व्यवसाय, बैंक खाता या संगठन सत्यापित है।'],
+      ['संपर्क और शिकायतें', 'जिम्मेदार कानूनी संस्था, शिकायत संपर्क, पता और शिकायत प्रक्रिया प्रकाशन के लिए स्वीकृत नहीं हैं। संगठन द्वारा विवरण की पुष्टि के बाद ही इन्हें जोड़ा जाएगा।'],
+    ],
+  },
+};
+
+const privacy = {
+  en: {
+    title: 'Privacy Notice',
+    draft: 'DRAFT — PENDING LEGAL REVIEW. This document is incomplete and is not approved for production use.',
+    sections: [
+      ['Purpose of this draft', 'This page is a privacy-review framework, not a final privacy notice or a legal conclusion about which rules apply to a particular deployment date.'],
+      ['Information and purpose', 'The current account flow uses a name, phone number, selected role and, if supplied, email and organization or crop preferences to create and operate an account. Optional location text and GPS are used to support nearby-market information. GPS is requested only after the user selects “Use my location”; location is not tracked in the background. Authentication, security, consent and transaction records support account access, safety and user-requested workflows.'],
+      ['Choices and control', 'Email and location are optional. Location can be removed from the account. Marketing messages are off unless the user separately opts in and can be withdrawn. Account creation does not require Aadhaar, bank details, exact landholding or an email address.'],
+      ['Review required before production', 'Counsel and the organization must confirm the data-fiduciary identity, complete field inventory, purpose and lawful basis for each use, processors and sharing, cross-border position, retention and deletion rules, user-rights process, children’s-data approach, cookies and privacy contact. No DPO or privacy contact is claimed by this draft.'],
+      ['Requests', 'The account includes initial access, correction and erasure request records. A submitted request is not an automated export, correction or deletion; it is routed for review.'],
+    ],
+  },
+  mr: {
+    title: 'गोपनीयता सूचना',
+    draft: 'मसुदा — कायदेशीर पुनरावलोकन प्रलंबित. हा दस्तऐवज अपूर्ण आहे आणि उत्पादनासाठी मंजूर नाही.',
+    sections: [
+      ['या मसुद्याचा उद्देश', 'हे पान गोपनीयता पुनरावलोकनासाठीची चौकट आहे. ही अंतिम सूचना नाही आणि कोणत्या तैनातीच्या दिवशी कोणते नियम लागू होतील याबाबत कायदेशीर निष्कर्ष देत नाही.'],
+      ['माहिती आणि उद्देश', 'सध्याच्या खाते प्रक्रियेत खाते तयार व चालवण्यासाठी नाव, फोन क्रमांक, निवडलेली भूमिका आणि दिल्यास ईमेल, संस्था किंवा पीक पसंती वापरली जाते. जवळच्या बाजारांची माहिती देण्यासाठी ऐच्छिक स्थान मजकूर आणि GPS वापरले जाऊ शकतात. वापरकर्त्याने “माझे स्थान वापरा” निवडल्यानंतरच GPS विचारले जाते; पार्श्वभूमीत मागोवा घेतला जात नाही. खाते प्रवेश, सुरक्षा, संमती आणि व्यवहार नोंदी वापरकर्त्याने मागितलेल्या सेवा चालवण्यासाठी वापरल्या जातात.'],
+      ['निवड आणि नियंत्रण', 'ईमेल आणि स्थान ऐच्छिक आहेत. खात्यातून स्थान काढता येते. वापरकर्ता स्वतंत्र संमती देत नाही तोपर्यंत विपणन संदेश बंद असतात आणि संमती मागे घेता येते. खाते तयार करण्यासाठी आधार, बँक माहिती, अचूक जमीनधारणा किंवा ईमेल आवश्यक नाही.'],
+      ['उत्पादनापूर्वी पुनरावलोकन आवश्यक', 'डेटा फिड्युशरीची ओळख, संपूर्ण माहिती यादी, प्रत्येक वापराचा उद्देश व कायदेशीर आधार, प्रक्रिया भागीदार, माहितीची देवाणघेवाण, देशाबाहेरील हस्तांतरण, जतन व विलोपन नियम, वापरकर्ता हक्क, मुलांची माहिती, कुकीज आणि गोपनीयता संपर्क यांची संस्थेने व कायदेशीर सल्लागारांनी पुष्टी करावी. हा मसुदा DPO किंवा गोपनीयता संपर्क असल्याचा दावा करत नाही.'],
+      ['विनंत्या', 'खात्यात प्रवेश, दुरुस्ती आणि विलोपन विनंती नोंदवण्याची प्राथमिक सोय आहे. विनंती दिल्याने माहिती आपोआप निर्यात, दुरुस्त किंवा हटत नाही; ती पुनरावलोकनासाठी पाठवली जाते.'],
+    ],
+  },
+  hi: {
+    title: 'गोपनीयता सूचना',
+    draft: 'मसौदा — कानूनी समीक्षा लंबित। यह दस्तावेज़ अधूरा है और उत्पादन उपयोग के लिए स्वीकृत नहीं है।',
+    sections: [
+      ['इस मसौदे का उद्देश्य', 'यह पेज गोपनीयता समीक्षा की रूपरेखा है, अंतिम सूचना नहीं। यह किसी खास तैनाती की तारीख पर लागू नियमों के बारे में कानूनी निष्कर्ष भी नहीं देता।'],
+      ['जानकारी और उद्देश्य', 'मौजूदा खाता प्रक्रिया में खाता बनाने और चलाने के लिए नाम, फोन नंबर, चुनी हुई भूमिका और दिए जाने पर ईमेल, संगठन या फसल की पसंद इस्तेमाल होती है। नज़दीकी बाज़ार की जानकारी के लिए वैकल्पिक लोकेशन टेक्स्ट और GPS का उपयोग हो सकता है। GPS की अनुमति केवल “मेरी लोकेशन इस्तेमाल करें” चुनने के बाद माँगी जाती है; पृष्ठभूमि में ट्रैकिंग नहीं होती। लॉगिन, सुरक्षा, सहमति और लेनदेन के रिकॉर्ड उपयोगकर्ता द्वारा माँगी गई सेवाओं के लिए रखे जाते हैं।'],
+      ['विकल्प और नियंत्रण', 'ईमेल और लोकेशन वैकल्पिक हैं। खाते से लोकेशन हटाई जा सकती है। उपयोगकर्ता की अलग सहमति के बिना विपणन संदेश बंद रहते हैं और सहमति वापस ली जा सकती है। खाता बनाने के लिए आधार, बैंक विवरण, सटीक भूमि-क्षेत्र या ईमेल ज़रूरी नहीं है।'],
+      ['उत्पादन से पहले समीक्षा ज़रूरी', 'संगठन और कानूनी सलाहकार डेटा फिड्यूशरी की पहचान, पूरी जानकारी सूची, हर उपयोग का उद्देश्य और कानूनी आधार, प्रोसेसर और साझा करना, देश से बाहर हस्तांतरण, रखने और हटाने के नियम, उपयोगकर्ता अधिकार, बच्चों का डेटा, कुकीज़ और गोपनीयता संपर्क की पुष्टि करें। यह मसौदा किसी DPO या गोपनीयता संपर्क का दावा नहीं करता।'],
+      ['अनुरोध', 'खाते में पहुँच, सुधार और मिटाने के अनुरोध दर्ज करने की शुरुआती सुविधा है। अनुरोध देने से जानकारी अपने आप निर्यात, सही या मिटाई नहीं जाती; इसे समीक्षा के लिए भेजा जाता है।'],
+    ],
+  },
+};
+
+export const POLICY_CONTENT = { terms, privacy };

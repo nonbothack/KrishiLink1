@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "KrishiLink — market reports and produce trading",
+  "short_name": "KrishiLink",
+  "description": "Check dated market reports and manage produce listings.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f8f2",
+  "theme_color": "#244b38",
+  "icons": [
+    { "src": "/icons/krishilink.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

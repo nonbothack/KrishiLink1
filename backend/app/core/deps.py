@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_token, is_token_revoked
-from app.models import AuditLog, User
+from app.models import AuditLog, AuthSession, User
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -48,6 +48,13 @@ def get_current_user(
         user = db.query(User).filter(User.email == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    if int(payload.get("ver", 0)) != int(getattr(user, "auth_token_version", 0) or 0):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ended")
+    if sid:
+        session = db.get(AuthSession, str(sid))
+        if session and (session.revoked_at is not None or session.user_id != user.id):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ended")
+    request.state.session_id = str(sid) if sid else None
     request.state.user = user
     request.state.user_role = payload.get("role")
     return user

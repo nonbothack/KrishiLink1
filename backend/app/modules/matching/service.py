@@ -65,6 +65,8 @@ def calculate_quantity_score(lot_qty: float, qmin, qmax, weights) -> tuple[int, 
 
 
 def calculate_distance_score(lot_lat, lot_lng, buyer_lat, buyer_lng, weights) -> tuple[int, str]:
+    if None in (lot_lat, lot_lng, buyer_lat, buyer_lng):
+        return 0, "Location unavailable; distance not scored"
     km = haversine_km(lot_lat, lot_lng, buyer_lat, buyer_lng)
     if km <= 20:
         return weights["distance"], f"Nearby {km:.1f}km (<20km)"
@@ -167,32 +169,26 @@ def find_candidates(db: Session, lot_id: str):
         )
         qty_score, qty_exp = calculate_quantity_score(float(lot.quantity), qmin, qmax, weights)
         # distance - get lat/lng from lot and buyer
-        lot_lat = (
-            float(lot.latitude)
-            if hasattr(lot, "latitude") and lot.latitude
-            else (19.9975 if lot.district == "Nashik" else 18.5204)
-        )
-        lot_lng = (
-            float(lot.longitude)
-            if hasattr(lot, "longitude") and lot.longitude
-            else (73.7898 if lot.district == "Nashik" else 73.8567)
-        )
-        # buyer lat/lng from profile or user
+        lot_lat = lot_lng = None
+        if lot.location_geog:
+            try:
+                from shapely import wkb
+
+                point = wkb.loads(bytes(lot.location_geog.data))
+                lot_lng, lot_lat = point.x, point.y
+            except (AttributeError, TypeError, ValueError):
+                pass
+        # buyer coordinates are used only when a persisted point exists
         buyer_lat = buyer_lng = None
-        if profile and hasattr(profile, "location_geog") and profile.location_geog:
-            # parse via DB? fallback
-            pass
-        # fallback to market coords by district
-        coords = {
-            "Nashik": (19.9975, 73.7898),
-            "Pune": (18.5204, 73.8567),
-            "Mumbai": (19.0760, 72.8777),
-            "Solapur": (17.6868, 75.9064),
-            "Aurangabad": (19.8762, 75.3433),
-            "Nagpur": (21.1458, 79.0882),
-        }
-        b_dist = buyer.district or "Pune"
-        buyer_lat, buyer_lng = coords.get(b_dist, (18.5204, 73.8567))
+        buyer_location = (profile.location_geog if profile else None) or buyer.location_geog
+        if buyer_location:
+            try:
+                from shapely import wkb
+
+                point = wkb.loads(bytes(buyer_location.data))
+                buyer_lng, buyer_lat = point.x, point.y
+            except (AttributeError, TypeError, ValueError):
+                pass
         dist_score, dist_exp = calculate_distance_score(lot_lat, lot_lng, buyer_lat, buyer_lng, weights)
         price_score, price_exp = calculate_price_score(lot.asking_price, (req.target_price if req else None), weights)
         time_score, time_exp = calculate_time_score(
@@ -202,7 +198,10 @@ def find_candidates(db: Session, lot_id: str):
             (req.required_until if req else None),
             weights,
         )
-        ver_score, ver_exp = calculate_verification_score(profile.is_verified if profile else False, weights)
+        ver_score, ver_exp = calculate_verification_score(
+            profile.business_verification_status == "VERIFIED" if profile else False,
+            weights,
+        )
         total = crop_score + grade_score + qty_score + dist_score + price_score + time_score + ver_score
         scores = {
             "crop": crop_score,

@@ -1,10 +1,10 @@
 import logging
-import re
 from typing import Any
 
 import httpx
 
 from app.core.config import settings
+from app.modules.auth.identity import canonicalize_indian_mobile
 
 logger = logging.getLogger(__name__)
 
@@ -18,29 +18,11 @@ def normalize_indian_phone(phone: str | None) -> dict[str, str] | None:
     """
     if not phone:
         return None
-
-    # Strip whitespace, hyphens, brackets, dots
-    cleaned = re.sub(r"[\s\-\(\)\.]+", "", str(phone).strip())
-
-    # Strip leading +
-    if cleaned.startswith("+"):
-        cleaned = cleaned[1:]
-
-    # If starts with 91 and has 12 digits, strip country code
-    if cleaned.startswith("91") and len(cleaned) == 12:
-        cleaned = cleaned[2:]
-    # If starts with 0 and has 11 digits, strip leading trunk zero
-    elif cleaned.startswith("0") and len(cleaned) == 11:
-        cleaned = cleaned[1:]
-
-    # Valid Indian mobile numbers are exactly 10 digits starting with 6, 7, 8, or 9
-    if re.fullmatch(r"[6-9]\d{9}", cleaned):
-        return {
-            "national": cleaned,
-            "e164": f"+91{cleaned}",
-        }
-
-    return None
+    try:
+        e164, national = canonicalize_indian_mobile(str(phone))
+    except ValueError:
+        return None
+    return {"national": national, "e164": e164}
 
 
 class SMSService:
@@ -65,7 +47,7 @@ class SMSService:
         """
         phone_info = normalize_indian_phone(farmer_phone)
         if not phone_info:
-            logger.info("SMS skipped: missing or invalid phone number '%s' for farmer '%s'", farmer_phone, farmer_name)
+            logger.info("SMS skipped: missing or invalid recipient phone number")
             return {
                 "success": False,
                 "status": "SKIPPED",
@@ -80,18 +62,11 @@ class SMSService:
 
         # 1. Demo Mode (Zero cost, local testing, or when disabled)
         if not settings.sms_enabled or settings.sms_provider.lower() in ("demo", "mock"):
-            logger.info(
-                "[SMS DEMO MODE] TO: %s (%s) | MSG: %s",
-                phone_info["e164"],
-                name_display,
-                message_text,
-            )
+            logger.info("SMS delivery simulated in demo mode; no carrier request was made")
             return {
-                "success": True,
+                "success": False,
                 "status": "DEMO",
                 "provider": "demo",
-                "phone": phone_info["e164"],
-                "message": message_text,
                 "detail": "SMS simulated in demo mode (no carrier charges)",
             }
 
@@ -182,7 +157,7 @@ class SMSService:
         """
         phone_info = normalize_indian_phone(phone)
         if not phone_info:
-            logger.info("SMS skipped: missing or invalid phone number '%s'", phone)
+            logger.info("SMS skipped: missing or invalid recipient phone number")
             return {
                 "success": False,
                 "status": "SKIPPED",
@@ -190,13 +165,11 @@ class SMSService:
             }
 
         if not settings.sms_enabled or settings.sms_provider.lower() in ("demo", "mock"):
-            logger.info("[SMS DEMO MODE] TO: %s | MSG: %s", phone_info["e164"], message)
+            logger.info("SMS delivery simulated in demo mode; no carrier request was made")
             return {
-                "success": True,
+                "success": False,
                 "status": "DEMO",
                 "provider": "demo",
-                "phone": phone_info["e164"],
-                "message": message,
                 "detail": "SMS simulated in demo mode (no carrier charges)",
             }
 

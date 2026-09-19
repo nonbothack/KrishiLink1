@@ -1,4 +1,27 @@
+import atexit
+import os
+import tempfile
 import uuid
+from pathlib import Path
+
+# A plain pytest invocation must never create or reuse backend/krishilink.db.
+# CI may provide an explicit PostgreSQL DATABASE_URL; local runs get a unique
+# disposable SQLite file unless the caller deliberately supplies a test URL.
+if not os.getenv("DATABASE_URL_SYNC") and not os.getenv("DATABASE_URL"):
+    _test_db = tempfile.NamedTemporaryFile(prefix="krishilink-pytest-", suffix=".db", delete=False)
+    _test_db.close()
+    os.environ["DATABASE_URL_SYNC"] = f"sqlite:///{_test_db.name}"
+    def _cleanup_test_db():
+        try:
+            Path(_test_db.name).unlink(missing_ok=True)
+        except PermissionError:
+            # SQLite may still hold a Windows file handle at interpreter exit;
+            # the unique temp file is isolated and can be removed by the OS.
+            pass
+
+    atexit.register(_cleanup_test_db)
+if "krishilink.db" in (os.getenv("DATABASE_URL_SYNC") or os.getenv("DATABASE_URL") or ""):
+    raise RuntimeError("Tests must use an isolated database; backend/krishilink.db is forbidden")
 
 import pytest
 from fastapi.testclient import TestClient

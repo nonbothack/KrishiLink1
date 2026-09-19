@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KrishiLink Packet 16 anonymized pilot sessions",
+  "type": "object",
+  "required": ["schema_version", "sessions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "16.1"},
+    "sessions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/session"}
+    }
+  },
+  "$defs": {
+    "session": {
+      "type": "object",
+      "required": ["session_id", "participant_code", "role", "build", "tasks"],
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {"type": "string", "pattern": "^S16-[A-Z0-9-]+$"},
+        "participant_code": {"type": "string", "pattern": "^P16-[A-Z0-9-]+$"},
+        "role": {"enum": ["farmer", "buyer", "fpo"]},
+        "build": {"type": "string", "minLength": 1},
+        "language": {"type": "string"},
+        "device_segment": {"type": "string"},
+        "network_segment": {"type": "string"},
+        "consent_recorded": {"type": "boolean"},
+        "tasks": {"type": "array", "items": {"$ref": "#/$defs/task"}}
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": ["task_id", "outcome", "elapsed_ms", "assistance"],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^[A-Z0-9-]+$"},
+        "outcome": {"enum": ["SUCCESS", "PARTIAL", "FAIL", "NOT_ATTEMPTED"]},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "assistance": {"enum": ["NONE", "PROMPT", "COACHED", "ABORTED"]},
+        "comprehension": {"enum": ["PASS", "PARTIAL", "FAIL", "NOT_TESTED"]},
+        "issue_code": {"type": "string"},
+        "severity": {"enum": ["P0", "P1", "P2", "P3", "INFO"]},
+        "evidence_ref": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

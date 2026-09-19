@@ -1,31 +1,32 @@
 import uuid
+from decimal import Decimal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.domain_contracts import TRADE_TRANSITIONS
 from app.core.idempotency import check_idempotency, save_idempotency
 from app.core.rate_limit import rate_limit
-from app.models import AuditLog, Lot, Offer, OutboxEvent, Reservation, TradeEvent, TradeTermSnapshot, Transaction, User
+from app.models import (
+    AuditLog,
+    BuyerProfile,
+    Lot,
+    Offer,
+    OutboxEvent,
+    Reservation,
+    TradeEvent,
+    TradeTermSnapshot,
+    Transaction,
+    User,
+)
 from app.modules.notifications.service import NotificationService
-from app.modules.notifications.sms_service import SMSService
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
-ALLOWED_TRANSITIONS = {
-    "CREATED": ["PAYMENT_PENDING", "CANCELLED"],
-    "PAYMENT_PENDING": ["PAYMENT_CONFIRMED", "CANCELLED"],
-    "PAYMENT_CONFIRMED": ["PROCESSING", "DISPUTED"],
-    "PROCESSING": ["READY_FOR_DISPATCH", "DISPUTED"],
-    "READY_FOR_DISPATCH": ["IN_TRANSIT", "DISPUTED"],
-    "IN_TRANSIT": ["DELIVERED", "DISPUTED"],
-    "DELIVERED": ["COMPLETED", "DISPUTED"],
-    "COMPLETED": [],
-    "DISPUTED": ["RESOLVED", "CANCELLED"],
-    "CANCELLED": [],
-}
+ALLOWED_TRANSITIONS = TRADE_TRANSITIONS
 
 ROLE_TRANSITIONS = {
     "PAYMENT_PENDING": ["buyer", "admin"],
@@ -36,7 +37,7 @@ ROLE_TRANSITIONS = {
     "DELIVERED": ["buyer", "farmer", "seller", "admin"],
     "COMPLETED": ["buyer", "admin"],
     "DISPUTED": ["buyer", "farmer", "seller", "admin"],
-    "RESOLVED": ["admin", "operator"],
+    "REFUNDED": ["admin", "operator"],
     "CANCELLED": ["buyer", "farmer", "seller", "admin"],
 }
 
@@ -47,6 +48,7 @@ class CreateTxnRequest(BaseModel):
 
 class TransitionRequest(BaseModel):
     to_status: str
+    reason: str | None = None
 
 
 @router.post("", response_model=dict, status_code=201)
@@ -54,7 +56,6 @@ class TransitionRequest(BaseModel):
 def create_transaction(
     data: CreateTxnRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -112,14 +113,18 @@ def create_transaction(
 
     lot = db.get(Lot, res.lot_id)
     offer = db.get(Offer, res.offer_id) if res.offer_id else None
+    if lot is None:
+        raise HTTPException(status_code=409, detail="Reserved lot is unavailable")
 
     # Derive contractual gross_value from accepted offer or lot price
     if offer and offer.price_per_unit is not None:
-        gross_val = round(float(res.quantity) * float(offer.price_per_unit), 2)
+        agreed_price = Decimal(str(offer.price_per_unit))
+        gross_val = (Decimal(str(res.quantity)) * agreed_price).quantize(Decimal("0.01"))
     elif lot and lot.asking_price is not None:
-        gross_val = round(float(res.quantity) * float(lot.asking_price), 2)
+        agreed_price = Decimal(str(lot.asking_price))
+        gross_val = (Decimal(str(res.quantity)) * agreed_price).quantize(Decimal("0.01"))
     else:
-        gross_val = 0.0
+        raise HTTPException(status_code=409, detail="Accepted offer and lot do not contain an agreed price")
 
     txn = Transaction(
         id=uuid.uuid4(),
@@ -135,9 +140,7 @@ def create_transaction(
     )
     db.add(txn)
     db.flush()
-    price_unit = float(offer.price_per_unit) if offer and offer.price_per_unit else (
-        float(lot.asking_price) if lot and lot.asking_price else 0.0
-    )
+    price_unit = agreed_price
     db.add(
         TradeTermSnapshot(
             id=uuid.uuid4(),
@@ -145,16 +148,16 @@ def create_transaction(
             lot_id=res.lot_id,
             buyer_id=res.buyer_id,
             seller_id=lot.owner_id if lot else user.id,
-            crop_name=lot.crop_name if lot else "Agricultural Produce",
-            grade=lot.grade if lot else "A",
-            quantity=float(res.quantity),
-            unit=lot.unit if lot else "quintal",
+            crop_name=lot.crop_name,
+            grade=lot.grade,
+            quantity=Decimal(str(res.quantity)),
+            unit=lot.unit,
             price_per_unit=price_unit,
             gross_value=gross_val,
-            estimated_net_realization=round(gross_val * 0.96, 2),
-            delivery_window="Standard 3-5 business days",
-            pickup_location=lot.location_text if lot else "Farm/Warehouse",
-            delivery_location="Buyer Delivery Hub",
+            estimated_net_realization=None,
+            delivery_window=None,
+            pickup_location=lot.location_text,
+            delivery_location=None,
         )
     )
     db.add(
@@ -168,9 +171,8 @@ def create_transaction(
             to_status="CREATED",
             title="Trade Agreement Formed",
             description=(
-                f"Agreed {float(res.quantity)} {lot.unit if lot else 'quintal'} of "
-                f"{lot.crop_name if lot else 'Produce'} (Grade {lot.grade if lot else 'A'}) "
-                f"at Rs. {price_unit:,.2f}/{lot.unit if lot else 'quintal'}."
+                f"Agreed {Decimal(str(res.quantity))} {lot.unit} of {lot.crop_name} (Grade {lot.grade}) "
+                f"at Rs. {price_unit:,.2f}/{lot.unit}."
             ),
         )
     )
@@ -195,52 +197,24 @@ def create_transaction(
     )
 
     # Notify seller (farmer) of new transaction
-    seller = None
     if lot:
         NotificationService.create_notification(
             db=db,
             user_id=lot.owner_id,
             type_="order_created",
             title="New Order Confirmed",
-            message=f"Order created for {lot.crop_name} (ID: #{str(txn.id)[:8]}). Value: Rs. {gross_val:,.2f}. Awaiting escrow payment.",
+            message=(
+                f"Trade record created for {lot.crop_name}. "
+                "Confirm payment arrangements directly with the other party; this platform does not move money."
+            ),
             related_id=txn.id,
             outbox=True,
         )
 
-        seller = db.get(User, lot.owner_id)
-        if seller:
-            db.add(
-                OutboxEvent(
-                    aggregate="deals",
-                    aggregate_id=str(txn.id),
-                    event_type="deal.confirmed.sms",
-                    payload={
-                        "transaction_id": str(txn.id),
-                        "order_id": str(txn.id)[:8],
-                        "farmer_phone": seller.phone,
-                        "farmer_name": seller.full_name,
-                        "crop_name": lot.crop_name,
-                        "quantity": float(res.quantity),
-                        "price_per_unit": float(offer.price_per_unit if offer and offer.price_per_unit is not None else (lot.asking_price or 0)),
-                    },
-                )
-            )
 
     db.commit()
     db.refresh(txn)
 
-    # Asynchronous background SMS dispatch via native FastAPI BackgroundTasks
-    # Runs directly inside the web service on Render without needing separate Celery workers or Redis
-    if lot and seller and seller.phone:
-        background_tasks.add_task(
-            SMSService.send_deal_confirmation,
-            farmer_phone=seller.phone,
-            farmer_name=seller.full_name or "Farmer",
-            crop_name=lot.crop_name,
-            quantity=float(res.quantity),
-            price_per_unit=float(offer.price_per_unit if offer and offer.price_per_unit is not None else (lot.asking_price or 0)),
-            order_id=str(txn.id)[:8],
-        )
     body = {
         "success": True,
         "data": {
@@ -273,20 +247,33 @@ def list_txns(
     total = q.count()
     items = q.order_by(Transaction.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
     lot_ids = [t.lot_id for t in items if t.lot_id]
+    buyer_ids = list({t.buyer_id for t in items if t.buyer_id})
+    seller_ids = list({t.seller_id for t in items if t.seller_id})
+    offer_ids = list({t.offer_id for t in items if t.offer_id})
     lots_map = {l.id: l for l in db.query(Lot).filter(Lot.id.in_(lot_ids)).all()} if lot_ids else {}
+    offers_map = {o.id: o for o in db.query(Offer).filter(Offer.id.in_(offer_ids)).all()} if offer_ids else {}
+    terms_map = {s.transaction_id: s for s in db.query(TradeTermSnapshot).filter(TradeTermSnapshot.transaction_id.in_([t.id for t in items])).all()} if items else {}
+    buyer_profiles = {p.user_id: p for p in db.query(BuyerProfile).filter(BuyerProfile.user_id.in_(buyer_ids)).all()} if buyer_ids else {}
+    sellers = {seller.id: seller for seller in db.query(User).filter(User.id.in_(seller_ids)).all()} if seller_ids else {}
 
-    data = [
-        {
+    data = []
+    for t in items:
+        terms = terms_map.get(t.id)
+        offer = offers_map.get(t.offer_id)
+        data.append({
             "id": str(t.id),
             "public_id": t.public_id,
             "lot_id": str(t.lot_id),
             "crop_name": lots_map[t.lot_id].crop_name if t.lot_id in lots_map else "Produce",
             "status": t.status,
             "gross_value": float(t.gross_value) if t.gross_value else None,
+            "quantity": str(terms.quantity if terms else offer.quantity if offer else ""),
+            "unit": terms.unit if terms else "quintal",
+            "price_per_unit": str(terms.price_per_unit if terms else offer.price_per_unit if offer else "") or None,
+            "buyer_name": buyer_profiles[t.buyer_id].business_name if t.buyer_id in buyer_profiles else "Buyer account",
+            "seller_label": sellers[t.seller_id].full_name if user.role.lower() == "buyer" and t.seller_id in sellers else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
-        }
-        for t in items
-    ]
+        })
     return {
         "success": True,
         "data": {"items": data, "total": total, "page": page, "limit": limit, "pages": (total + limit - 1) // limit},
@@ -329,53 +316,14 @@ def transition(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    t = db.get(Transaction, txn_id)
-    if not t:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    if user.role.lower() not in ("admin", "operator") and user.id not in (t.buyer_id, t.seller_id):
-        raise HTTPException(status_code=403, detail="Forbidden: You are not authorized to update this transaction")
+    from app.modules.trades.schemas import TradeRoomResponse
+    from app.modules.trades.service import execute_trade_transition
 
-    cur = t.status
-    nxt = data.to_status.upper()
-    if nxt not in ALLOWED_TRANSITIONS.get(cur, []):
-        raise HTTPException(status_code=409, detail=f"Invalid transaction transition: {cur} -> {nxt}")
-
-    # Verify role permissions for this transition
-    allowed_roles = ROLE_TRANSITIONS.get(nxt, ["admin"])
-    user_role = user.role.lower()
-    if user_role not in ("admin", "operator") and user_role not in allowed_roles:
-        raise HTTPException(status_code=403, detail=f"Forbidden: {user.role} is not permitted to transition to {nxt}")
-
-    t.status = nxt
-    rid = getattr(request.state, "request_id", str(uuid.uuid4()))
-    db.add(
-        AuditLog(
-            actor_id=str(user.id),
-            action=f"transaction.{nxt.lower()}",
-            entity="transactions",
-            entity_id=str(t.id),
-            before={"status": cur},
-            after={"status": nxt},
-            request_id=rid,
-        )
-    )
-
-    # Notify counterpart of transaction status update
-    counterpart_id = t.buyer_id if user.id == t.seller_id else t.seller_id
-    NotificationService.create_notification(
-        db=db,
-        user_id=counterpart_id,
-        type_="order_status",
-        title="Order Status Updated",
-        message=f"Transaction #{str(t.id)[:8]} status changed from {cur} to {nxt}.",
-        related_id=t.id,
-        outbox=True,
-    )
-
-    db.commit()
+    room = execute_trade_transition(db, txn_id, data.to_status, user, request, data.reason)
+    validated = TradeRoomResponse.model_validate(room).model_dump()
     return {
         "success": True,
-        "data": {"id": str(t.id), "status": t.status},
-        "message": f"Transitioned to {nxt}",
-        "request_id": rid,
+        "data": validated,
+        "message": f"Trade status recorded as {data.to_status.upper()}",
+        "request_id": getattr(request.state, "request_id", None),
     }

@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from geoalchemy2.elements import WKTElement
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models import (
@@ -81,6 +82,8 @@ def geog(lat, lng):
 
 
 def run():
+    if settings.env != "development" or not settings.demo_mode:
+        raise RuntimeError("Demo seed data can only be loaded in development with DEMO_MODE=true")
     db: Session = SessionLocal()
     try:
         crop_map = {}
@@ -483,6 +486,7 @@ def run():
                         cost_per_unit=2.5,
                         status="ACTIVE",
                         verification_status="VERIFIED",
+                        source_kind="DEMO_SYNTHETIC",
                     )
                 )
 

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-09-19",
+  "assessment_scope": "Packet 14 engineering and procurement readiness",
+  "certification_claim": false,
+  "controls": [
+    {"id":"GOV-01","status":"IMPLEMENTED_NOT_EXTERNALLY_VERIFIED","evidence":"docs/readiness/government-readiness-matrix.md","test_command":"python scripts/check_readiness.py"},
+    {"id":"A11Y-01","status":"IMPLEMENTED_NOT_EXTERNALLY_VERIFIED","evidence":"docs/readiness/accessibility-matrix.md","test_command":"npm run test:e2e"},
+    {"id":"SEC-01","status":"IMPLEMENTED_NOT_EXTERNALLY_VERIFIED","evidence":"docs/readiness/application-security-matrix.md","test_command":"python -m pytest -q"},
+    {"id":"TEN-01","status":"PARTIAL","evidence":"docs/readiness/deployment-architecture.md","test_command":"python -m pytest -q tests/test_packet14_readiness.py"},
+    {"id":"PORT-01","status":"IMPLEMENTED_AND_TESTED","evidence":"backend/app/modules/fpo/router.py","test_command":"python -m pytest -q tests/test_packet14_readiness.py"},
+    {"id":"DR-01","status":"DOCUMENTED_ONLY","evidence":"docs/readiness/backup-architecture.md","test_command":"manual restore drill required"},
+    {"id":"RESTORE-01","status":"EXTERNAL_DEPENDENCY","evidence":"docs/runbooks/database-restore.md","test_command":"live PostgreSQL drill required"},
+    {"id":"UAT-01","status":"DOCUMENTED_ONLY","evidence":"docs/readiness/UAT-plan.md","test_command":"institutional UAT required"}
+  ]
+}

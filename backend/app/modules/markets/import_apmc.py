@@ -1,171 +1,225 @@
-import logging
-import os
-import time
+"""License-aware, idempotent APMC candidate ingestion.
+
+This module intentionally does not geocode or verify imported records. A source
+row is evidence that a name appeared in a dataset, not proof of a selling outlet
+or a precise coordinate.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import json
+import math
+import re
+import unicodedata
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-import httpx
 from geoalchemy2.elements import WKTElement
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.models import Market
+from app.models import DataSourceRegistry, District, Market, State, Subdistrict
 
-logger = logging.getLogger(__name__)
-
-# Nominatim Geocoding Cache file to prevent repetitive external queries
-CACHE_FILE = os.path.join(os.path.dirname(__file__), "geocode_cache.json")
-
-
-def load_geocode_cache() -> dict[str, Any]:
-    if os.path.exists(CACHE_FILE):
-        try:
-            import json
-
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-
-def save_geocode_cache(cache: dict[str, Any]) -> None:
-    try:
-        import json
-
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(cache, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        logger.warning("Could not save geocode cache: %s", e)
-
-
-def geocode_address(query: str, cache: dict[str, Any]) -> tuple[float, float] | None:
-    """
-    Perform geocoding query against Nominatim / OpenStreetMap.
-    Respects rate limits (1 request per second) and caches coordinates.
-    """
-    cleaned_query = query.strip()
-    if not cleaned_query:
-        return None
-
-    if cleaned_query in cache:
-        cached = cache[cleaned_query]
-        if cached:
-            return (float(cached["lat"]), float(cached["lon"]))
-        return None
-
-    url = "https://nominatim.openstreetmap.org/search"
-    params = {
-        "q": cleaned_query,
-        "format": "json",
-        "limit": 1,
-        "countrycodes": "in",
-    }
-    headers = {
-        "User-Agent": "KrishiLink-AgriPlatform/2.0 (contact@krishilink.org)",
-        "Accept-Language": "en",
-    }
-
-    try:
-        time.sleep(1.0)  # Respect OpenStreetMap 1 req/sec policy
-        resp = httpx.get(url, params=params, headers=headers, timeout=10.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, list) and len(data) > 0:
-                lat = float(data[0]["lat"])
-                lon = float(data[0]["lon"])
-                cache[cleaned_query] = {"lat": lat, "lon": lon}
-                save_geocode_cache(cache)
-                return (lat, lon)
-    except Exception as exc:
-        logger.warning("Geocoding failed for '%s': %s", cleaned_query, exc)
-
-    cache[cleaned_query] = None
-    save_geocode_cache(cache)
-    return None
-
-
-# Well-known district and APMC coordinates across key agricultural centers
-STANDARD_MANDI_COORDINATES: dict[str, tuple[float, float, str, str]] = {
-    # Maharashtra Mandis
-    "Lasalgaon APMC": (20.1224, 73.9698, "Nashik", "Maharashtra"),
-    "Nashik APMC": (19.9975, 73.7898, "Nashik", "Maharashtra"),
-    "Pune APMC": (18.5204, 73.8567, "Pune", "Maharashtra"),
-    "Ahmednagar APMC": (19.0948, 74.7480, "Ahmednagar", "Maharashtra"),
-    "Solapur APMC": (17.6868, 75.9064, "Solapur", "Maharashtra"),
-    "Chhatrapati Sambhaji Nagar (Aurangabad) APMC": (19.8762, 75.3433, "Chhatrapati Sambhaji Nagar", "Maharashtra"),
-    "Nagpur APMC": (21.1458, 79.0882, "Nagpur", "Maharashtra"),
-    "Vashi APMC (Mumbai)": (19.0760, 72.8777, "Mumbai", "Maharashtra"),
-    "Kolhapur APMC": (16.7050, 74.2433, "Kolhapur", "Maharashtra"),
-    "Sangli APMC": (16.8524, 74.5815, "Sangli", "Maharashtra"),
-    "Satara APMC": (17.6805, 74.0183, "Satara", "Maharashtra"),
-    "Jalgaon APMC": (21.0077, 75.5626, "Jalgaon", "Maharashtra"),
-    "Amravati APMC": (20.9374, 77.7796, "Amravati", "Maharashtra"),
-    "Akola APMC": (20.7002, 77.0082, "Akola", "Maharashtra"),
-    "Latur APMC": (18.4088, 76.5604, "Latur", "Maharashtra"),
-    "Nanded APMC": (19.1383, 77.3210, "Nanded", "Maharashtra"),
-    # Karnataka Mandis
-    "Bengaluru (Yeshwanthpur) APMC": (13.0163, 77.5557, "Bengaluru Urban", "Karnataka"),
-    "Mysuru APMC (Bandipalya)": (12.2818, 76.6667, "Mysuru", "Karnataka"),
-    "Belagavi APMC": (15.8497, 74.4977, "Belagavi", "Karnataka"),
-    "Hubballi APMC (Amargol)": (15.3949, 75.1017, "Dharwad", "Karnataka"),
-    "Kalaburagi APMC": (17.3297, 76.8343, "Kalaburagi", "Karnataka"),
-    "Shivamogga APMC": (13.9299, 75.5681, "Shivamogga", "Karnataka"),
-    "Davanagere APMC": (14.4644, 75.9218, "Davanagere", "Karnataka"),
-    "Ballari APMC": (15.1394, 76.9214, "Ballari", "Karnataka"),
-    "Kolar APMC": (13.1367, 78.1291, "Kolar", "Karnataka"),
-    "Chikkaballapura APMC": (13.4325, 77.7275, "Chikkaballapura", "Karnataka"),
-    "Hassan APMC": (13.0072, 76.1032, "Hassan", "Karnataka"),
-    "Mandya APMC": (12.5218, 76.8951, "Mandya", "Karnataka"),
-    "Tumakuru APMC": (13.3409, 77.1010, "Tumakuru", "Karnataka"),
-    "Chitradurga APMC": (14.2251, 76.3980, "Chitradurga", "Karnataka"),
-    "Bagalkote APMC": (16.1817, 75.6958, "Bagalkote", "Karnataka"),
-    "Vijayapura APMC": (16.8302, 75.7100, "Vijayapura", "Karnataka"),
-    "Raichur APMC": (16.2076, 77.3463, "Raichur", "Karnataka"),
-    "Bidar APMC": (17.9104, 77.5199, "Bidar", "Karnataka"),
-    "Gadag APMC": (15.4298, 75.6329, "Gadag", "Karnataka"),
-    "Haveri APMC": (14.7958, 75.3991, "Haveri", "Karnataka"),
-    "Udupi APMC": (13.3409, 74.7421, "Udupi", "Karnataka"),
-    "Mangaluru APMC (Baikampady)": (12.9352, 74.8118, "Dakshina Kannada", "Karnataka"),
+PARSER_VERSION = "apmc-candidate-csv-v1"
+OUTLET_TYPES = {
+    "apmc_principal",
+    "apmc_sub",
+    "enam_market",
+    "private_mandi",
+    "fpo_centre",
+    "processor_point",
+    "government_procurement",
+    "warehouse",
+    "cold_storage",
+    "collection_centre",
+    "verified_trader",
+    "haat_candidate",
+    "market_candidate",
+}
+HEADER_ALIASES = {
+    "name": {"name", "market", "market_name", "outlet", "outlet_name"},
+    "district": {"district", "district_name"},
+    "state": {"state", "state_name"},
+    "subdistrict": {"subdistrict", "taluka", "tehsil", "sub_district"},
+    "lat": {"lat", "latitude"},
+    "lng": {"lng", "lon", "longitude"},
+    "source_ref": {"source_ref", "record_id", "market_code", "apmc_code", "enam_code"},
+    "outlet_type": {"outlet_type", "market_type", "type"},
+    "state_lgd_code": {"state_lgd_code", "state_code_lgd"},
+    "district_lgd_code": {"district_lgd_code", "district_code_lgd"},
+    "subdistrict_lgd_code": {"subdistrict_lgd_code", "taluka_lgd_code", "sub_district_code_lgd"},
 }
 
 
-def geog(lat: float, lng: float) -> WKTElement:
-    return WKTElement(f"POINT({lng} {lat})", srid=4326, extended=True)
+def normalize_name(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return " ".join(re.findall(r"[\w]+", normalized, flags=re.UNICODE))
 
 
-def import_standard_mandis(db: Session) -> int:
-    """Import and update core APMC mandis with coordinates."""
-    count = 0
-    for mandi_name, (lat, lng, district, state) in STANDARD_MANDI_COORDINATES.items():
-        m = db.query(Market).filter(Market.name == mandi_name).first()
-        if not m:
-            m = Market(
-                name=mandi_name,
-                district=district,
-                state=state,
-                latitude=lat,
-                longitude=lng,
-                location_geog=geog(lat, lng),
-                market_type="APMC",
-                is_active=True,
+def in_india_bounds(latitude: float, longitude: float) -> bool:
+    return math.isfinite(latitude) and math.isfinite(longitude) and 6 <= latitude <= 38 and 68 <= longitude <= 98
+
+
+def _canonical_row(raw: dict[str, str]) -> dict[str, str]:
+    headers = {
+        re.sub(r"[^a-z0-9]+", "_", unicodedata.normalize("NFKC", key or "").strip().casefold()).strip("_"): value
+        for key, value in raw.items()
+    }
+    result: dict[str, str] = {}
+    for canonical, aliases in HEADER_ALIASES.items():
+        match = next((headers[key] for key in aliases if key in headers), "")
+        result[canonical] = (match or "").strip()
+    return result
+
+
+def _resolve_geography(db: Session, row: dict[str, str]) -> tuple[Any, Any, Any]:
+    state = db.query(State).filter(State.lgd_code == row["state_lgd_code"]).first() if row["state_lgd_code"] else None
+    district = db.query(District).filter(District.lgd_code == row["district_lgd_code"]).first() if row["district_lgd_code"] else None
+    subdistrict = (
+        db.query(Subdistrict).filter(Subdistrict.lgd_code == row["subdistrict_lgd_code"]).first()
+        if row["subdistrict_lgd_code"]
+        else None
+    )
+    if district and state and district.state_id != state.id:
+        raise ValueError("district LGD code does not belong to supplied state")
+    if subdistrict and district and subdistrict.district_id != district.id:
+        raise ValueError("subdistrict LGD code does not belong to supplied district")
+    if subdistrict and not district:
+        raise ValueError("subdistrict LGD code requires a resolvable district LGD code")
+    return state, district, subdistrict
+
+
+def ingest_apmc_csv(db: Session, csv_path: Path, source_key: str) -> dict[str, Any]:
+    source = db.query(DataSourceRegistry).filter(DataSourceRegistry.source_key == source_key).first()
+    if not source or not source.is_active:
+        raise ValueError("source_key must reference an active data_source_registry entry")
+    if source.license_status not in {"approved", "not_applicable"}:
+        raise ValueError("source license/terms are not approved for ingestion")
+    if not source.parser_version:
+        raise ValueError("source registry must declare parser_version")
+
+    try:
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            if not reader.fieldnames:
+                raise ValueError("CSV header row is missing")
+            canonical_headers = set(_canonical_row({key: "" for key in reader.fieldnames}).keys())
+            if not {"name", "district", "state"}.issubset(canonical_headers):
+                raise ValueError("CSV must contain name, district and state columns")
+            rows = list(reader)
+    except UnicodeDecodeError as exc:
+        raise ValueError("CSV encoding is not UTF-8; identify the source encoding before conversion") from exc
+
+    report: dict[str, Any] = {"source_key": source_key, "parser_version": source.parser_version, "fetched": len(rows), "inserted": 0, "duplicates": 0, "review": 0, "rejected": 0, "issues": []}
+    for row_number, raw in enumerate(rows, start=2):
+        row = _canonical_row(raw)
+        try:
+            name = " ".join(row["name"].split())
+            district_name = " ".join(row["district"].split())
+            state_name = " ".join(row["state"].split())
+            if not name or not district_name or not state_name:
+                raise ValueError("name, district and state are required")
+            normalized = normalize_name(name)
+            if len(normalized) < 2:
+                raise ValueError("name is malformed")
+            outlet_type = row["outlet_type"].casefold() or "market_candidate"
+            if outlet_type not in OUTLET_TYPES:
+                raise ValueError("outlet_type is not a supported canonical type")
+
+            latitude = longitude = None
+            if row["lat"] or row["lng"]:
+                if not row["lat"] or not row["lng"]:
+                    raise ValueError("latitude and longitude must be supplied together")
+                latitude, longitude = float(row["lat"]), float(row["lng"])
+                if not in_india_bounds(latitude, longitude):
+                    raise ValueError("coordinates fall outside India bounds")
+
+            state, district, subdistrict = _resolve_geography(db, row)
+            if row["state_lgd_code"] and not state:
+                raise ValueError("unknown state LGD code")
+            if row["district_lgd_code"] and not district:
+                raise ValueError("unknown district LGD code")
+            if row["subdistrict_lgd_code"] and not subdistrict:
+                raise ValueError("unknown subdistrict LGD code")
+            if state and normalize_name(state.name) != normalize_name(state_name):
+                raise ValueError("state label does not match the supplied state LGD code")
+            if district and normalize_name(district.name) != normalize_name(district_name):
+                raise ValueError("district label does not match the supplied district LGD code")
+
+            external_ref = row["source_ref"] or hashlib.sha256(
+                "|".join((normalized, normalize_name(district_name), normalize_name(state_name), row["lat"], row["lng"], outlet_type)).encode("utf-8")
+            ).hexdigest()
+            existing = db.query(Market).filter(
+                Market.source_registry_id == source.id, Market.source_ref == external_ref
+            ).first()
+            if existing:
+                report["duplicates"] += 1
+                continue
+
+            identity_filters = [Market.normalized_name == normalized]
+            identity_filters.append(Market.state_id == state.id if state else Market.state.ilike(state_name))
+            identity_filters.append(Market.district_id == district.id if district else Market.district.ilike(district_name))
+            similar = db.query(Market).filter(*identity_filters).all()
+            review_reasons = []
+            if similar:
+                review_reasons.append("same normalized name and resolved administrative area exists")
+            if not state or not district:
+                review_reasons.append("administrative LGD mapping is incomplete")
+            if latitude is None:
+                review_reasons.append("coordinates unavailable")
+            if latitude is not None:
+                review_reasons.append("dataset coordinates require independent review")
+
+            market = Market(
+                name=name,
+                district=district_name,
+                state=state_name,
+                state_id=state.id if state else None,
+                district_id=district.id if district else None,
+                subdistrict_id=subdistrict.id if subdistrict else None,
+                normalized_name=normalized,
+                outlet_type=outlet_type,
+                source_registry_id=source.id,
+                source_ref=external_ref,
+                source_confidence=None,
+                external_identifier=row["source_ref"] or None,
+                latitude=latitude,
+                longitude=longitude,
+                location_geog=WKTElement(f"POINT({longitude} {latitude})", srid=4326, extended=True) if latitude is not None else None,
+                coordinate_source="dataset_import" if latitude is not None else None,
+                coordinate_confidence=None,
+                verification_status="needs_review",
+                market_type=outlet_type,
+                is_active=False,
+                metadata_json={"parser_version": source.parser_version, "review_reasons": review_reasons},
             )
-            db.add(m)
-        else:
-            m.latitude = lat
-            m.longitude = lng
-            m.district = district
-            m.state = state
-            m.location_geog = geog(lat, lng)
-        count += 1
+            db.add(market)
+            db.flush()
+            report["inserted"] += 1
+            report["review"] += 1
+            if review_reasons:
+                report["issues"].append({"row": row_number, "status": "needs_review", "reasons": review_reasons})
+        except (ValueError, TypeError, OverflowError) as exc:
+            report["rejected"] += 1
+            report["issues"].append({"row": row_number, "status": "rejected", "reason": str(exc)})
+    source.last_success_at = datetime.now(timezone.utc)
+    source.parser_version = source.parser_version or PARSER_VERSION
     db.commit()
-    logger.info("Imported %d standard APMC mandis with verified coordinates.", count)
-    return count
+    return report
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Import licensed APMC data as unverified review candidates")
+    parser.add_argument("csv_path", type=Path)
+    parser.add_argument("--source-key", required=True)
+    args = parser.parse_args()
+    with SessionLocal() as db:
+        print(json.dumps(ingest_apmc_csv(db, args.csv_path, args.source_key), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
-    db = SessionLocal()
-    try:
-        c = import_standard_mandis(db)
-        print(f"Successfully processed {c} APMC mandis with PostGIS coordinates.")
-    finally:
-        db.close()
+    main()
