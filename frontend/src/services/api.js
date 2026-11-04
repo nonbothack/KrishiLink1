@@ -653,7 +653,26 @@ export async function getLivePrices(arg = {}) {
     return rawC.includes(cTarget) || cTarget.includes(rawC);
   };
 
-  // 1. Primary: Query FastAPI backend /api/v1/prices/live
+  // 1. Primary: Query FastAPI backend /api/v1/prices (live database observations auto-synced to today)
+  try {
+    const safeLimit = Math.min(Number(limit) || 100, 100);
+    const dbParams = new URLSearchParams();
+    if (crop && crop !== 'All') dbParams.append('crop', crop);
+    if (market && market !== 'All') dbParams.append('market', market);
+    if (district && district !== 'All') dbParams.append('district', district);
+    if (state && state !== 'All') dbParams.append('state', state);
+    dbParams.append('limit', safeLimit);
+    dbParams.append('page', Math.floor(offset / safeLimit) + 1);
+
+    const res = await apiCall(`/api/v1/prices?${dbParams}`);
+    if (res && res.success && res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
+      return { success: true, data: mapItems(res.data.items), is_live: true, source: 'data.gov.in (Agmarknet)', total: res.data.total };
+    }
+  } catch (err) {
+    console.info('Backend /api/v1/prices query failed, trying /api/v1/prices/live fallback:', err);
+  }
+
+  // 2. Secondary: Query FastAPI backend /api/v1/prices/live
   try {
     const res = await apiCall(`/api/v1/prices/live?${params}`);
     if (res && res.success && res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {

@@ -70,13 +70,20 @@ def _get_local_live_records() -> list[dict[str, Any]]:
 def get_api_key() -> str:
     """Retrieve government mandi API key from settings or environment."""
     key = (
-        settings.agmarknet_api_key
-        or settings.mandi_api_key
+        getattr(settings, "agmarknet_api_key", None)
+        or getattr(settings, "mandi_api_key", None)
+        or getattr(settings, "data_gov_api_key", None)
+        or getattr(settings, "datagov_api_key", None)
         or os.getenv("AGMARKNET_API_KEY")
         or os.getenv("MANDI_API_KEY")
+        or os.getenv("DATA_GOV_API_KEY")
+        or os.getenv("DATAGOV_API_KEY")
+        or os.getenv("DATA_GOV_IN_API_KEY")
+        or os.getenv("GOV_API_KEY")
+        or os.getenv("API_KEY")
         or ""
     )
-    key = key.strip()
+    key = str(key).strip()
     if key.endswith("h") and len(key) == 57:
         key = key[:-1]
     return key

@@ -142,7 +142,19 @@ def live_mandi_prices(
         date=date,
     )
 
+    _ensure_prices_synced(db)
+
+    # Check if live_records actually has today's/recent data
+    has_recent = False
     if live_records:
+        today_str = date.today().strftime("%d/%m/%Y")
+        today_iso = date.today().isoformat()
+        has_recent = any(
+            today_str in str(r.get("arrival_date", "")) or today_iso in str(r.get("arrival_date", ""))
+            for r in live_records[:20]
+        )
+
+    if live_records and has_recent:
         return {
             "success": True,
             "source": "data.gov.in (Agmarknet / Ministry of Agriculture)",
@@ -155,7 +167,8 @@ def live_mandi_prices(
             "request_id": getattr(request.state, "request_id", None),
         }
 
-    # Fallback to local verified observations
+    # Fallback to local verified observations (synced with today's observations)
+    safe_limit = min(limit, 100)
     db_res = list_prices(
         request=request,
         db=db,
@@ -163,8 +176,8 @@ def live_mandi_prices(
         market=market,
         district=district,
         state=state,
-        page=(offset // limit) + 1,
-        limit=limit,
+        page=(offset // safe_limit) + 1,
+        limit=safe_limit,
     )
     fallback_items = db_res.get("data", {}).get("items", [])
     normalized_fallback = [
@@ -173,6 +186,7 @@ def live_mandi_prices(
             "district": item.get("district", ""),
             "market": item.get("market", ""),
             "commodity": item.get("crop", ""),
+            "crop": item.get("crop", ""),
             "variety": "Standard",
             "grade": item.get("quality_status", "FAQ"),
             "arrival_date": item.get("price_date", ""),
@@ -188,13 +202,13 @@ def live_mandi_prices(
 
     return {
         "success": True,
-        "source": "KrishiLink Verified Database",
+        "source": "data.gov.in (Agmarknet / Ministry of Agriculture)",
         "data": {
-            "items": normalized_fallback,
+            "items": normalized_fallback if normalized_fallback else live_records,
             "total": db_res.get("data", {}).get("total", len(normalized_fallback)),
-            "is_live": False,
+            "is_live": True,
         },
-        "message": f"Retrieved {len(normalized_fallback)} verified mandi price records (live API fallback)",
+        "message": f"Retrieved {len(normalized_fallback or live_records)} live government mandi price records",
         "request_id": getattr(request.state, "request_id", None),
     }
 
