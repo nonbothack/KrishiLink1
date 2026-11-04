@@ -56,6 +56,25 @@ async def lifespan(app: FastAPI):
                 sync_daily_prices(db)
             except Exception as se:
                 logger.warning(f"Initial daily price sync error (non-fatal): {se}")
+
+            # Deactivate legacy demo/test accounts in production
+            if settings.env == "production" or not settings.demo_mode:
+                try:
+                    from app.models import User
+
+                    deactivated = (
+                        db.query(User)
+                        .filter((User.email.like("%@demo.com")) | (User.email.like("%@krishilink.demo")))
+                        .update(
+                            {"is_active": False, "password_hash": "DISABLED_DEMO_ACCOUNT"},
+                            synchronize_session=False,
+                        )
+                    )
+                    db.commit()
+                    if deactivated:
+                        logger.info(f"Deactivated {deactivated} legacy demo accounts.")
+                except Exception as de:
+                    logger.warning(f"Demo accounts cleanup notice: {de}")
         finally:
             db.close()
     except Exception as e:
@@ -65,12 +84,13 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings.validate_prod()
+    show_docs = settings.debug or settings.env != "production" or settings.enable_docs
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url=f"{settings.api_v1_prefix}/openapi.json",
+        docs_url="/docs" if show_docs else None,
+        redoc_url="/redoc" if show_docs else None,
+        openapi_url=f"{settings.api_v1_prefix}/openapi.json" if show_docs else None,
         lifespan=lifespan,
     )
 

@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from geoalchemy2.elements import WKTElement
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models import (
@@ -197,6 +198,11 @@ def run():
                             )
                         )
         db.flush()
+
+        # In production, do not seed demo accounts with hardcoded passwords
+        if settings.env == "production" and not settings.demo_mode:
+            db.commit()
+            return
 
         pw = hash_password("demo123!")
         users = [

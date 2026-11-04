@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_role
 from app.models import Notification, OutboxEvent
 from app.modules.notifications.sms_service import SMSService
 
@@ -104,7 +104,7 @@ class TestSMSRequest(BaseModel):
 def test_sms(
     data: TestSMSRequest,
     request: Request,
-    user=Depends(get_current_user),
+    user=Depends(require_role("admin")),
 ):
     """
     Test SMS delivery endpoint for SIH presentation and live sanity check.

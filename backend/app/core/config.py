@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     app_version: str = Field(default="2.0.0")
     env: str = Field(default="development")
     debug: bool = Field(default=True)
-    demo_mode: bool = Field(default=True)
+    demo_mode: bool = Field(default=False)
+    admin_emails: str = Field(default="ambreomkar33@gmail.com,ambromkar33@gmail.com")
+    enable_docs: bool = Field(default=False)
+    metrics_token: str | None = Field(default=None)
 
     api_v1_prefix: str = Field(default="/api/v1")
     host: str = Field(default="0.0.0.0")
@@ -69,6 +72,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def admin_emails_list(self) -> list[str]:
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
 
     @property
     def database_url_effective(self) -> str:
