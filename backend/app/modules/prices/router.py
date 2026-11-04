@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date as dt_date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, or_
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def _ensure_prices_synced(db: Session):
     try:
         max_d = db.query(func.max(PriceObservation.price_date)).scalar()
-        if not max_d or max_d < date.today():
+        if not max_d or max_d < dt_date.today():
             from app.modules.prices.sync_service import sync_daily_prices
 
             sync_daily_prices(db)
@@ -147,8 +147,8 @@ def live_mandi_prices(
     # Check if live_records actually has today's/recent data
     has_recent = False
     if live_records:
-        today_str = date.today().strftime("%d/%m/%Y")
-        today_iso = date.today().isoformat()
+        today_str = dt_date.today().strftime("%d/%m/%Y")
+        today_iso = dt_date.today().isoformat()
         has_recent = any(
             today_str in str(r.get("arrival_date", "")) or today_iso in str(r.get("arrival_date", ""))
             for r in live_records[:20]
