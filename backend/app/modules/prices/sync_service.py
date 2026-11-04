@@ -16,7 +16,7 @@ from app.models import Crop, IngestionRun, Market, PriceObservation, PriceSource
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_API_KEY = "579b464db66ec23bdd000001655d5ddcd9c3499c5c8d71125e230de7"
+DEFAULT_API_KEY = os.getenv("DATA_GOV_API_KEY", "")
 RESOURCE_URL = "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
 
 TARGET_CROPS = ["Onion", "Tomato", "Soybean", "Cotton", "Wheat", "Potato", "Chilli", "Rice"]
