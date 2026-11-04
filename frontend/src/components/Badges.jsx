@@ -8,10 +8,17 @@ import { useLanguage } from '../hooks/useLanguage';
 
 export function TrendBadge({ trend, change }) {
   const { t: translate } = useLanguage();
-  const tr = (trend || '').toUpperCase();
+  const rawTr = (trend || '').toUpperCase();
   const hasChange = change != null && !isNaN(Number(change));
   const numChange = hasChange ? Number(change) : null;
-  const changeText = numChange != null ? (numChange > 0 ? `+${numChange}%` : `${numChange}%`) : '';
+
+  // Defensive guard: 0% or sub-0.1% change is Stable, never "Rising 0%" or "Falling 0%"
+  const isZeroChange = numChange == null || Math.abs(numChange) < 0.1;
+  const tr = isZeroChange ? 'STABLE' : rawTr;
+
+  const changeText = (!isZeroChange && numChange != null)
+    ? (numChange > 0 ? `+${numChange}%` : `${numChange}%`)
+    : '';
 
   if (tr === 'RISING') {
     const raw = translate('rising') || 'Rising';
@@ -38,7 +45,7 @@ export function TrendBadge({ trend, change }) {
   return (
     <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 font-semibold text-xs px-2.5 py-1 rounded-full border border-amber-200">
       <Minus className="w-3.5 h-3.5" />
-      {label} {changeText}
+      {label}
     </span>
   );
 }

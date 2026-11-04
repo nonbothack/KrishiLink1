@@ -622,12 +622,16 @@ export async function getMarketLocations({ category = 'all', state = null, distr
 export async function getLivePrices(arg = {}) {
   const opts = typeof arg === 'number' ? { limit: arg } : (arg || {});
   const defaultLimit = (opts.crop && opts.crop !== 'All') ? 50 : 250;
-  const { crop = null, market = null, district = null, state = null, limit = defaultLimit, offset = 0 } = opts;
+  const { crop = null, market = null, district = null, state = 'Maharashtra', limit = defaultLimit, offset = 0 } = opts;
+  const targetState = state || 'Maharashtra';
   const params = new URLSearchParams();
-  if (crop && crop !== 'All') params.append('crop', crop);
+  if (crop && crop !== 'All') {
+    const qCrop = (crop.toLowerCase() === 'soyabean' || crop.toLowerCase() === 'soybean') ? 'Soybean' : crop;
+    params.append('crop', qCrop);
+  }
   if (market && market !== 'All') params.append('market', market);
   if (district && district !== 'All') params.append('district', district);
-  if (state && state !== 'All') params.append('state', state);
+  if (targetState && targetState !== 'All') params.append('state', targetState);
   params.append('limit', limit);
   params.append('offset', offset);
 
@@ -637,12 +641,20 @@ export async function getLivePrices(arg = {}) {
     if (!arrDate || arrDate.includes('11/09')) {
       arrDate = todayDMY;
     }
+    let trend = p.trend;
+    let changePct = p.change_pct != null ? Number(p.change_pct) : null;
+    if (changePct === 0 || changePct == null || (trend === 'RISING' && changePct <= 0)) {
+      trend = 'STABLE';
+      changePct = 0.0;
+    }
     return {
       ...p,
       arrival_date: arrDate,
       price_date: p.price_date || arrDate,
       crop: p.crop || p.commodity || 'Produce',
       commodity: p.commodity || p.crop || 'Produce',
+      trend: trend,
+      change_pct: changePct,
     };
   });
 
@@ -666,10 +678,13 @@ export async function getLivePrices(arg = {}) {
   try {
     const safeLimit = Math.min(Number(limit) || 100, 100);
     const dbParams = new URLSearchParams();
-    if (crop && crop !== 'All') dbParams.append('crop', crop);
+    if (crop && crop !== 'All') {
+      const qCrop = (crop.toLowerCase() === 'soyabean' || crop.toLowerCase() === 'soybean') ? 'Soybean' : crop;
+      dbParams.append('crop', qCrop);
+    }
     if (market && market !== 'All') dbParams.append('market', market);
     if (district && district !== 'All') dbParams.append('district', district);
-    if (state && state !== 'All') dbParams.append('state', state);
+    if (targetState && targetState !== 'All') dbParams.append('state', targetState);
     dbParams.append('limit', safeLimit);
     dbParams.append('page', Math.floor(offset / safeLimit) + 1);
 
@@ -704,8 +719,8 @@ export async function getLivePrices(arg = {}) {
         if (market && market !== 'All') {
           items = items.filter(p => (p.market || '').toLowerCase().includes(market.toLowerCase()));
         }
-        if (state && state !== 'All') {
-          items = items.filter(p => (p.state || '').toLowerCase().includes(state.toLowerCase()));
+        if (targetState && targetState !== 'All') {
+          items = items.filter(p => (p.state || '').toLowerCase().includes(targetState.toLowerCase()));
         }
         if (district && district !== 'All') {
           items = items.filter(p => (p.district || '').toLowerCase().includes(district.toLowerCase()));
@@ -720,7 +735,7 @@ export async function getLivePrices(arg = {}) {
     // ignore
   }
 
-  // 3. Tertiary: Authentic in-memory LIVE_GOVERNMENT_PRICES (250+ real arrivals with >= 20 of each crop)
+  // 3. Tertiary: Authentic in-memory LIVE_GOVERNMENT_PRICES (Maharashtra arrivals)
   let items = [...LIVE_GOVERNMENT_PRICES];
   if (crop && crop !== 'All') {
     items = items.filter(p => matchesCrop(p, crop));
@@ -728,8 +743,8 @@ export async function getLivePrices(arg = {}) {
   if (market && market !== 'All') {
     items = items.filter(p => (p.market || '').toLowerCase().includes(market.toLowerCase()));
   }
-  if (state && state !== 'All') {
-    items = items.filter(p => (p.state || '').toLowerCase().includes(state.toLowerCase()));
+  if (targetState && targetState !== 'All') {
+    items = items.filter(p => (p.state || '').toLowerCase().includes(targetState.toLowerCase()));
   }
   if (district && district !== 'All') {
     items = items.filter(p => (p.district || '').toLowerCase().includes(district.toLowerCase()));

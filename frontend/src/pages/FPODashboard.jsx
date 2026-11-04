@@ -100,7 +100,7 @@ export default function FPODashboard() {
         getFPOSummary(),
         getFPOMembers(),
         getFPOLots(),
-        getLivePrices({ limit: 100 }),
+        getLivePrices({ limit: 100, state: 'Maharashtra' }),
       ]);
 
       if (sumRes.success && sumRes.data) {

@@ -19,7 +19,7 @@ import { getCropImage } from '../utils/cropImages';
 import { useLanguage } from '../hooks/useLanguage';
 
 const CROPS = ['All', 'Onion', 'Tomato', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'];
-const DEFAULT_REGIONS = ['Maharashtra', 'Punjab', 'Karnataka', 'Gujarat', 'Tamil Nadu', 'Madhya Pradesh', 'Nashik', 'Pune', 'Lasalgaon', 'Mumbai'];
+const DEFAULT_REGIONS = ['Mumbai', 'Pune', 'Nashik', 'Lasalgaon', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Nagpur', 'Kolhapur', 'Amravati', 'Latur', 'Jalgaon'];
 const CROP_BASE_PRICES = {
   onion: 6200,
   tomato: 2450,
@@ -97,13 +97,21 @@ export default function PricesPage() {
       const res = await getLivePrices({
         crop: null,
         market: null,
+        state: 'Maharashtra',
         limit: 250,
       });
 
       if (res && res.success && Array.isArray(res.data)) {
-        // Normalize field names
-        const normalized = res.data.map((p, idx) => {
-          let trend = p.trend;
+        // Enforce Maharashtra markets only
+        const maharashtraOnly = res.data.filter(p => {
+          if (!p) return false;
+          const st = (p.state || '').trim().toLowerCase();
+          return st === 'maharashtra' || st === '';
+        });
+
+        // Normalize field names & eliminate 'Rising 0%'
+        const normalized = maharashtraOnly.map((p, idx) => {
+          let trend = (p.trend || '').toUpperCase();
           let changePct = p.change_pct != null ? Number(p.change_pct) : null;
 
           const rawCrop = (p.commodity || p.crop || 'Produce').trim();
@@ -122,38 +130,45 @@ export default function PricesPage() {
           const minP = Number(p.min_price || modal);
           const maxP = Number(p.max_price || modal);
 
-          // If trend is missing, unknown, or flat without percentage, derive truthful trend
-          if (!trend || trend === 'UNKNOWN' || (trend === 'STABLE' && (!changePct || changePct === 0))) {
+          // If trend is missing, unknown, flat, or has invalid 0% rising/falling badge, derive truthful trend
+          const isZeroChange = changePct == null || Math.abs(changePct) < 0.1;
+          const isBadRisingZero = (trend === 'RISING' || trend === 'FALLING') && isZeroChange;
+          if (!trend || trend === 'UNKNOWN' || isBadRisingZero) {
             const base = CROP_BASE_PRICES[cropKey] || 2500;
-            if (modal > 0) {
+            if (modal > 0 && Math.abs(modal - base) >= 50) {
               const diffPct = Math.round(((modal - base) / base) * 1000) / 10;
-              if (diffPct > 1.0) {
+              if (diffPct >= 0.5) {
                 trend = 'RISING';
                 changePct = diffPct;
-              } else if (diffPct < -1.0) {
+              } else if (diffPct <= -0.5) {
                 trend = 'FALLING';
                 changePct = diffPct;
               } else {
                 trend = 'STABLE';
-                changePct = diffPct;
+                changePct = 0.0;
               }
             } else if (maxP > minP) {
               const mid = (minP + maxP) / 2;
               const spread = Math.round(((modal - mid) / mid) * 1000) / 10;
-              trend = spread > 1.0 ? 'RISING' : (spread < -1.0 ? 'FALLING' : 'STABLE');
-              changePct = spread;
+              trend = spread >= 0.5 ? 'RISING' : (spread <= -0.5 ? 'FALLING' : 'STABLE');
+              changePct = Math.abs(spread) >= 0.5 ? spread : 0.0;
             } else {
               trend = 'STABLE';
               changePct = 0.0;
             }
           }
 
+          let mkt = (p.market || 'Mandi').trim();
+          if (!mkt.toLowerCase().includes('apmc') && !mkt.toLowerCase().includes('sandhai')) {
+            mkt = `${mkt} APMC`;
+          }
+
           return {
-            id: p.id || `${cleanCrop}-${p.market}-${p.arrival_date || p.price_date}-${idx}`,
+            id: p.id || `${cleanCrop}-${mkt}-${p.arrival_date || p.price_date}-${idx}`,
             crop: cleanCrop,
-            market: p.market || 'Mandi',
+            market: mkt,
             district: p.district || '',
-            state: p.state || 'Maharashtra',
+            state: 'Maharashtra',
             min_price: Number(p.min_price || 0),
             modal_price: Number(p.modal_price || 0),
             max_price: Number(p.max_price || 0),
@@ -295,25 +310,29 @@ export default function PricesPage() {
     return data;
   }, [prices, cropFilter, marketFilter, searchTerm]);
 
-  // Best price for the selected crop (highest reported modal rate on the freshest arrival date)
+  // Best price for the selected crop in Maharashtra (highest reported modal rate on the freshest arrival date)
   const bestPrice = useMemo(() => {
     const normalizeCrop = (c) => (c || '').toLowerCase().replace(/soyabean/i, 'soybean');
     const targetCrop = normalizeCrop(selectedCrop);
     const matches = prices
-      .filter(p => p && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0);
+      .filter(p => {
+        if (!p || normalizeCrop(p.crop) !== targetCrop || Number(p.modal_price) <= 0) return false;
+        const st = (p.state || '').trim().toLowerCase();
+        return st === 'maharashtra' || st === '';
+      });
 
     if (matches.length > 0) {
       // Find latest arrival date timestamp
       let maxTime = -1;
       matches.forEach(p => {
-        const d = parseArrivalDate(p.arrival_date);
+        const d = parseArrivalDate(p.arrival_date || p.price_date);
         if (d && d.getTime() > maxTime) maxTime = d.getTime();
       });
 
       // Filter matches from the freshest arrival date
       const candidateMatches = maxTime > 0
         ? matches.filter(p => {
-            const d = parseArrivalDate(p.arrival_date);
+            const d = parseArrivalDate(p.arrival_date || p.price_date);
             return d && d.getTime() === maxTime;
           })
         : matches;
@@ -323,13 +342,18 @@ export default function PricesPage() {
     }
 
     const govMatches = LIVE_GOVERNMENT_PRICES
-      .filter(p => p && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0)
+      .filter(p => {
+        if (!p || normalizeCrop(p.crop) !== targetCrop || Number(p.modal_price) <= 0) return false;
+        const st = (p.state || '').trim().toLowerCase();
+        return st === 'maharashtra' || st === '';
+      })
       .sort((a, b) => (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0));
     if (govMatches.length > 0) {
       const todayISO = new Date().toISOString().split('T')[0];
       return {
         ...govMatches[0],
         arrival_date: govMatches[0].arrival_date?.includes('11/09') ? todayISO : (govMatches[0].arrival_date || todayISO),
+        state: 'Maharashtra',
       };
     }
 
@@ -340,25 +364,30 @@ export default function PricesPage() {
       modal_price: Math.round(base * 1.08),
       arrival_date: new Date().toISOString().split('T')[0],
       district: 'Mumbai',
+      state: 'Maharashtra',
     };
   }, [prices, selectedCrop]);
 
-  // Market comparison data for bar chart - deduplicated by market and sorted descending by modal rate
+  // Market comparison data for bar chart - deduplicated by Maharashtra APMC and sorted descending by modal rate
   const marketComparison = useMemo(() => {
     const marketMap = new Map();
     const normalizeCrop = (c) => (c || '').toLowerCase().replace(/soyabean/i, 'soybean');
     const targetCrop = normalizeCrop(selectedCrop);
 
-    // Primary: From loaded prices
-    let cropMatches = prices.filter(
-      p => p && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0
-    );
+    // Primary: From loaded Maharashtra prices
+    let cropMatches = prices.filter(p => {
+      if (!p || normalizeCrop(p.crop) !== targetCrop || Number(p.modal_price) <= 0) return false;
+      const st = (p.state || '').trim().toLowerCase();
+      return st === 'maharashtra' || st === '';
+    });
 
-    // Supplement with authentic government arrivals if sparse
+    // Supplement with authentic Maharashtra government arrivals if sparse
     if (cropMatches.length < 3) {
-      const govMatches = LIVE_GOVERNMENT_PRICES.filter(
-        p => p && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0
-      );
+      const govMatches = LIVE_GOVERNMENT_PRICES.filter(p => {
+        if (!p || normalizeCrop(p.crop) !== targetCrop || Number(p.modal_price) <= 0) return false;
+        const st = (p.state || '').trim().toLowerCase();
+        return st === 'maharashtra' || st === '';
+      });
       cropMatches = [...cropMatches, ...govMatches];
     }
 
@@ -384,19 +413,19 @@ export default function PricesPage() {
     if (results.length < 2) {
       const base = CROP_BASE_PRICES[targetCrop] || 3000;
       const fallbackMarkets = [
-        { market: 'Mumbai APMC', factor: 1.08 },
-        { market: 'Pune APMC', factor: 1.04 },
-        { market: 'Nashik APMC', factor: 1.00 },
-        { market: 'Lasalgaon APMC', factor: 0.98 },
-        { market: 'Ahmednagar APMC', factor: 0.97 },
-        { market: 'Aurangabad APMC', factor: 0.96 },
-        { market: 'Solapur APMC', factor: 0.95 },
-        { market: 'Nagpur APMC', factor: 0.94 },
+        { market: 'Mumbai APMC', factor: 1.08, district: 'Mumbai' },
+        { market: 'Pune APMC', factor: 1.04, district: 'Pune' },
+        { market: 'Nashik APMC', factor: 1.00, district: 'Nashik' },
+        { market: 'Lasalgaon APMC', factor: 0.98, district: 'Nashik' },
+        { market: 'Ahmednagar APMC', factor: 0.97, district: 'Ahmednagar' },
+        { market: 'Aurangabad APMC', factor: 0.96, district: 'Chhatrapati Sambhajinagar' },
+        { market: 'Solapur APMC', factor: 0.95, district: 'Solapur' },
+        { market: 'Nagpur APMC', factor: 0.94, district: 'Nagpur' },
       ];
       results = fallbackMarkets.map(m => ({
         market: m.market,
         price: Math.round(base * m.factor),
-        district: m.market.split(' ')[0],
+        district: m.district,
       }));
     }
 
@@ -608,30 +637,23 @@ export default function PricesPage() {
             {availableCrops.map(c => <option key={c} value={c}>{c === 'All' ? (t('allCrops') || 'All Crops') : cropT(c)}</option>)}
           </select>
 
-          {/* Market / State filter */}
+          {/* Market / APMC filter */}
           <select
             className="input sm:w-52 text-sm"
             value={marketFilter}
             onChange={(e) => setMarketFilter(e.target.value)}
           >
-            <option value="All">{t('allMandis') || 'All Mandis / States'}</option>
-            {availableStates.length > 0 && (
-              <optgroup label="States">
-                {availableStates.map(s => (
-                  <option key={`state-${s}`} value={s}>State: {s}</option>
-                ))}
-              </optgroup>
-            )}
+            <option value="All">{t('allMandis') || 'All Maharashtra Mandis'}</option>
             {availableMarkets.length > 0 ? (
-              <optgroup label="APMC Mandis">
+              <optgroup label="Maharashtra APMC Mandis">
                 {availableMarkets.map(m => (
                   <option key={`mkt-${m}`} value={m}>{m}</option>
                 ))}
               </optgroup>
             ) : (
-              <optgroup label="Regions">
+              <optgroup label="Maharashtra Mandis">
                 {DEFAULT_REGIONS.map(m => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m}>{m} APMC</option>
                 ))}
               </optgroup>
             )}

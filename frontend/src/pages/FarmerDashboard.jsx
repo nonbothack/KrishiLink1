@@ -102,7 +102,7 @@ export default function FarmerDashboard() {
           storageRes,
           notifRes,
         ] = await Promise.all([
-          getLivePrices({ limit: 250 }),
+          getLivePrices({ limit: 250, state: 'Maharashtra' }),
           getTrend(selectedCrop, targetMarket),
           getPriceHistory(selectedCrop, targetMarket, 15),
           getFarmerDashboardSummary(),
