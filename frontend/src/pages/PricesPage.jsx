@@ -307,7 +307,24 @@ export default function PricesPage() {
       });
     }
 
-    return data;
+    // Deduplicate by latest arrival date for each (crop, market)
+    const latestMap = new Map();
+    data.forEach(p => {
+      const key = `${(p.crop || '').toLowerCase()}_${(p.market || '').toLowerCase()}`;
+      const curDate = parseArrivalDate(p.arrival_date || p.price_date);
+      const curTime = curDate ? curDate.getTime() : 0;
+      const existing = latestMap.get(key);
+      if (!existing || curTime > (existing._time || 0)) {
+        latestMap.set(key, { ...p, _time: curTime });
+      }
+    });
+
+    // Sort descending by modal price (highest paying APMC first)
+    return Array.from(latestMap.values()).sort((a, b) => {
+      const pDiff = (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0);
+      if (pDiff !== 0) return pDiff;
+      return (b._time || 0) - (a._time || 0);
+    });
   }, [prices, cropFilter, marketFilter, searchTerm]);
 
   // Best price for the selected crop in Maharashtra (highest reported modal rate on the freshest arrival date)
@@ -395,13 +412,16 @@ export default function PricesPage() {
       const baseName = (p.market || '').replace(/APMC/i, '').split('(')[0].trim();
       const cleanName = baseName ? `${baseName} APMC` : p.market;
       const currentPrice = Number(p.modal_price) || 0;
+      const curDate = parseArrivalDate(p.arrival_date || p.price_date);
+      const curTime = curDate ? curDate.getTime() : 0;
 
       const existing = marketMap.get(cleanName);
-      if (!existing || currentPrice > existing.price) {
+      if (!existing || curTime > (existing.time || 0) || (curTime === (existing.time || 0) && currentPrice > existing.price)) {
         marketMap.set(cleanName, {
           market: cleanName,
           price: currentPrice,
           district: p.district || '',
+          time: curTime,
         });
       }
     });
@@ -575,7 +595,7 @@ export default function PricesPage() {
                     tickFormatter={(m) => (m && m.length > 15 ? `${m.slice(0, 13)}…` : m)}
                   />
                   <YAxis
-                    domain={['dataMin - 200', 'dataMax + 200']}
+                    domain={[0, (dataMax) => Math.ceil((dataMax || 6000) * 1.15)]}
                     tick={{ fontSize: 10 }}
                     tickFormatter={(v) => `₹${Number(v || 0).toLocaleString('en-IN')}`}
                     width={65}
@@ -722,7 +742,15 @@ export default function PricesPage() {
                             className="w-8 h-8 rounded-md object-cover flex-shrink-0 border border-gray-100 shadow-sm"
                           />
                           <span>{cropT(p.crop)}</span>
-                          {isBest && <span className="ml-1 text-[10px] font-bold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">{t('best') || 'BEST'}</span>}
+                          {isBest && (
+                            <span
+                              className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full"
+                              title="Highest modal selling rate across APMCs"
+                            >
+                              <TrendingUp className="w-3 h-3 text-emerald-700" />
+                              {t('topRate') || 'TOP RATE'}
+                            </span>
+                          )}
                           {(p.quality_status === 'INTERPOLATED' || p.is_interpolated) && (
                             <span
                               className="ml-1 text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded"
