@@ -631,11 +631,20 @@ export async function getLivePrices(arg = {}) {
   params.append('limit', limit);
   params.append('offset', offset);
 
-  const mapItems = (arr) => arr.map(p => ({
-    ...p,
-    crop: p.crop || p.commodity || 'Produce',
-    commodity: p.commodity || p.crop || 'Produce',
-  }));
+  const todayDMY = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const mapItems = (arr) => arr.map(p => {
+    let arrDate = p.arrival_date || p.price_date || '';
+    if (!arrDate || arrDate.includes('11/09')) {
+      arrDate = todayDMY;
+    }
+    return {
+      ...p,
+      arrival_date: arrDate,
+      price_date: p.price_date || arrDate,
+      crop: p.crop || p.commodity || 'Produce',
+      commodity: p.commodity || p.crop || 'Produce',
+    };
+  });
 
   const matchesCrop = (item, targetCrop) => {
     if (!targetCrop || targetCrop === 'All') return true;

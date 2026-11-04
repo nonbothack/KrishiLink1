@@ -55,18 +55,20 @@ def fetch_live_agmarknet_records(limit: int = 5000) -> list[dict[str, Any]]:
     url = f"{RESOURCE_URL}?api-key={api_key}&format=json&limit={limit}"
 
     try:
-        cmd = ["curl.exe", "-s", "--max-time", "25", url]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        if result.stdout and len(result.stdout) > 200:
-            data = json.loads(result.stdout)
-            records = data.get("records", [])
-            if records:
-                logger.info("Fetched %s live records from data.gov.in", len(records))
-                with open(cache_file, "w", encoding="utf-8") as f:
-                    f.write(result.stdout)
-                return records
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "KrishiLink/2.0"})
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            if resp.status == 200:
+                raw_bytes = resp.read()
+                data = json.loads(raw_bytes.decode("utf-8"))
+                records = data.get("records", [])
+                if records:
+                    logger.info("Fetched %s live records from data.gov.in", len(records))
+                    with open(cache_file, "wb") as f:
+                        f.write(raw_bytes)
+                    return records
     except Exception as exc:
-        logger.warning("Live curl to data.gov.in failed (%s). Checking local cache...", exc)
+        logger.warning("Live fetch to data.gov.in failed (%s). Checking local cache...", exc)
 
     if cache_file.exists():
         try:

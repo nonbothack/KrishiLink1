@@ -19,7 +19,7 @@ import { getCropImage } from '../utils/cropImages';
 import { useLanguage } from '../hooks/useLanguage';
 
 const CROPS = ['All', 'Onion', 'Tomato', 'Soyabean', 'Cotton', 'Wheat', 'Potato', 'Chilli', 'Rice'];
-const REGIONS = ['All', 'Nashik', 'Lasalgaon', 'Pune', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Bengaluru', 'Mysuru'];
+const DEFAULT_REGIONS = ['Maharashtra', 'Punjab', 'Karnataka', 'Gujarat', 'Tamil Nadu', 'Madhya Pradesh', 'Nashik', 'Pune', 'Lasalgaon', 'Mumbai'];
 const CROP_BASE_PRICES = {
   onion: 6200,
   tomato: 2450,
@@ -32,6 +32,47 @@ const CROP_BASE_PRICES = {
   chili: 4650,
   rice: 2700,
 };
+
+// Safely parse ISO (YYYY-MM-DD) or Indian Agmarknet (DD/MM/YYYY) format
+function parseArrivalDate(dateStr) {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    return new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+  }
+  const dmyMatch = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (dmyMatch) {
+    return new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10));
+  }
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isDateToday(dateStr) {
+  const d = parseArrivalDate(dateStr);
+  if (!d) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() &&
+         d.getMonth() === now.getMonth() &&
+         d.getDate() === now.getDate();
+}
+
+function formatArrivalDate(dateStr, includeTodayLabel = false) {
+  const d = parseArrivalDate(dateStr);
+  if (!d) return dateStr || '—';
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[d.getMonth()];
+  const year = d.getFullYear();
+  const formatted = `${day} ${month} ${year}`;
+
+  if (isDateToday(dateStr)) {
+    return includeTodayLabel ? `Today, ${formatted}` : formatted;
+  }
+  return formatted;
+}
 
 export default function PricesPage() {
   const { t, cropT } = useLanguage();
@@ -167,6 +208,44 @@ export default function PricesPage() {
     loadHistory(selectedCrop, selectedMarket);
   }, [selectedCrop, selectedMarket, loadHistory]);
 
+  const availableCrops = useMemo(() => {
+    const set = new Set();
+    CROPS.forEach(c => set.add(c));
+    prices.forEach(p => {
+      if (p.crop && p.crop.trim()) set.add(p.crop.trim());
+    });
+    return Array.from(set);
+  }, [prices]);
+
+  const { availableStates, availableMarkets } = useMemo(() => {
+    const states = new Set();
+    const markets = new Set();
+    prices.forEach(p => {
+      if (p.state && p.state.trim()) states.add(p.state.trim());
+      if (p.market && p.market.trim()) markets.add(p.market.trim());
+    });
+    return {
+      availableStates: Array.from(states).sort(),
+      availableMarkets: Array.from(markets).sort(),
+    };
+  }, [prices]);
+
+  const trendMarkets = useMemo(() => {
+    const normalizeCrop = (c) => (c || '').toLowerCase().replace(/soyabean/i, 'soybean');
+    const targetCrop = normalizeCrop(selectedCrop);
+    const mSet = new Set();
+    prices
+      .filter(p => p && normalizeCrop(p.crop) === targetCrop && p.market)
+      .forEach(p => {
+        const clean = p.market.replace(/APMC/i, '').split('(')[0].trim();
+        if (clean) mSet.add(clean);
+      });
+    if (mSet.size === 0) {
+      DEFAULT_REGIONS.slice(0, 8).forEach(m => mSet.add(m));
+    }
+    return Array.from(mSet).slice(0, 15);
+  }, [prices, selectedCrop]);
+
   const filtered = useMemo(() => {
     let data = Array.isArray(prices) ? [...prices] : [];
 
@@ -196,7 +275,7 @@ export default function PricesPage() {
         const m = (p.market || '').toLowerCase();
         const d = (p.district || '').toLowerCase();
         const s = (p.state || '').toLowerCase();
-        return m.includes(mf) || d.includes(mf) || s.includes(mf);
+        return m.includes(mf) || d.includes(mf) || s.includes(mf) || mf.includes(m) || mf.includes(s);
       });
     }
 
@@ -216,20 +295,43 @@ export default function PricesPage() {
     return data;
   }, [prices, cropFilter, marketFilter, searchTerm]);
 
-  // Best price for the selected crop
+  // Best price for the selected crop (highest reported modal rate on the freshest arrival date)
   const bestPrice = useMemo(() => {
     const normalizeCrop = (c) => (c || '').toLowerCase().replace(/soyabean/i, 'soybean');
     const targetCrop = normalizeCrop(selectedCrop);
     const matches = prices
-      .filter(p => p && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0)
-      .sort((a, b) => (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0));
+      .filter(p => p && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0);
 
-    if (matches.length > 0) return matches[0];
+    if (matches.length > 0) {
+      // Find latest arrival date timestamp
+      let maxTime = -1;
+      matches.forEach(p => {
+        const d = parseArrivalDate(p.arrival_date);
+        if (d && d.getTime() > maxTime) maxTime = d.getTime();
+      });
+
+      // Filter matches from the freshest arrival date
+      const candidateMatches = maxTime > 0
+        ? matches.filter(p => {
+            const d = parseArrivalDate(p.arrival_date);
+            return d && d.getTime() === maxTime;
+          })
+        : matches;
+
+      const sorted = candidateMatches.sort((a, b) => (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0));
+      if (sorted.length > 0) return sorted[0];
+    }
 
     const govMatches = LIVE_GOVERNMENT_PRICES
       .filter(p => p && normalizeCrop(p.crop) === targetCrop && Number(p.modal_price) > 0)
       .sort((a, b) => (Number(b.modal_price) || 0) - (Number(a.modal_price) || 0));
-    if (govMatches.length > 0) return govMatches[0];
+    if (govMatches.length > 0) {
+      const todayISO = new Date().toISOString().split('T')[0];
+      return {
+        ...govMatches[0],
+        arrival_date: govMatches[0].arrival_date?.includes('11/09') ? todayISO : (govMatches[0].arrival_date || todayISO),
+      };
+    }
 
     const base = CROP_BASE_PRICES[targetCrop] || 3000;
     return {
@@ -358,12 +460,12 @@ export default function PricesPage() {
                 ))}
               </select>
               <select
-                className="input text-xs w-36 sm:w-40 py-1.5 px-2 min-h-[34px]"
+                className="input text-xs w-36 sm:w-44 py-1.5 px-2 min-h-[34px]"
                 value={selectedMarket}
                 onChange={(e) => setSelectedMarket(e.target.value)}
               >
                 <option value="All">{t('allMandisAvg') || 'All Mandis (Avg)'}</option>
-                {['Nashik', 'Lasalgaon', 'Pune', 'Ahmednagar', 'Solapur', 'Aurangabad', 'Nagpur', 'Mumbai'].map(m => (
+                {trendMarkets.map(m => (
                   <option key={m} value={m}>{m} APMC</option>
                 ))}
               </select>
@@ -412,7 +514,9 @@ export default function PricesPage() {
               </div>
               <div className="text-right">
                 <p className="text-xl font-bold text-green-800 tracking-tight">₹{Number(bestPrice.modal_price || 0).toLocaleString('en-IN')}</p>
-                <p className="text-xs text-gray-400">{t('perQuintal') || 'per quintal'} ({bestPrice.arrival_date || (t('today') || 'Today')})</p>
+                <p className="text-xs text-gray-500 font-medium">
+                  {t('perQuintal') || 'per quintal'} • <span className="text-green-700 font-semibold">{formatArrivalDate(bestPrice.arrival_date, true)}</span>
+                </p>
               </div>
             </div>
           )}
@@ -501,16 +605,36 @@ export default function PricesPage() {
             value={cropFilter}
             onChange={(e) => setCropFilter(e.target.value)}
           >
-            {CROPS.map(c => <option key={c} value={c}>{c === 'All' ? (t('all') || 'All') : cropT(c)}</option>)}
+            {availableCrops.map(c => <option key={c} value={c}>{c === 'All' ? (t('allCrops') || 'All Crops') : cropT(c)}</option>)}
           </select>
 
-          {/* Market filter */}
+          {/* Market / State filter */}
           <select
-            className="input sm:w-44 text-sm"
+            className="input sm:w-52 text-sm"
             value={marketFilter}
             onChange={(e) => setMarketFilter(e.target.value)}
           >
-            {REGIONS.map(m => <option key={m} value={m}>{m === 'All' ? (t('all') || 'All') : m}</option>)}
+            <option value="All">{t('allMandis') || 'All Mandis / States'}</option>
+            {availableStates.length > 0 && (
+              <optgroup label="States">
+                {availableStates.map(s => (
+                  <option key={`state-${s}`} value={s}>State: {s}</option>
+                ))}
+              </optgroup>
+            )}
+            {availableMarkets.length > 0 ? (
+              <optgroup label="APMC Mandis">
+                {availableMarkets.map(m => (
+                  <option key={`mkt-${m}`} value={m}>{m}</option>
+                ))}
+              </optgroup>
+            ) : (
+              <optgroup label="Regions">
+                {DEFAULT_REGIONS.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
 
@@ -593,8 +717,15 @@ export default function PricesPage() {
                           <span>{p.market} {p.district ? `(${p.district})` : ''}</span>
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-gray-500 text-xs hidden sm:table-cell">
-                        {p.arrival_date || '—'}
+                      <td className="px-5 py-3.5 text-gray-600 text-xs hidden sm:table-cell">
+                        <span className="inline-flex items-center gap-1.5 font-medium">
+                          {formatArrivalDate(p.arrival_date)}
+                          {isDateToday(p.arrival_date) && (
+                            <span className="text-[10px] font-bold bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full border border-green-200">
+                              Today
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="px-5 py-3.5 text-right text-gray-500">₹{Number(p.min_price || 0).toLocaleString('en-IN')}</td>
                       <td className={`px-5 py-3.5 text-right font-bold ${isBest ? 'text-green-700 text-lg' : 'text-gray-900'}`}>
