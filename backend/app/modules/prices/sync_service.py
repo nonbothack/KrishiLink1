@@ -2,7 +2,7 @@ import hashlib
 import json
 import logging
 import os
-import subprocess
+import urllib.request
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -55,7 +55,6 @@ def fetch_live_agmarknet_records(limit: int = 5000) -> list[dict[str, Any]]:
     url = f"{RESOURCE_URL}?api-key={api_key}&format=json&limit={limit}"
 
     try:
-        import urllib.request
         req = urllib.request.Request(url, headers={"User-Agent": "KrishiLink/2.0"})
         with urllib.request.urlopen(req, timeout=25) as resp:
             if resp.status == 200:
