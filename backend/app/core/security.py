@@ -14,7 +14,10 @@ def hash_password(pw: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_ctx.verify(plain, hashed)
+    try:
+        return pwd_ctx.verify(plain, hashed)
+    except Exception:
+        return False
 
 
 def create_access_token(sub: str, role: str, extra: dict[str, Any] | None = None) -> str:

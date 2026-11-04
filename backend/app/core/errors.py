@@ -1,8 +1,9 @@
 import uuid
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 def request_id_var() -> str:
@@ -43,6 +44,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 async def generic_exception_handler(request: Request, exc: Exception):
     rid = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "data": None,
+                "message": str(exc.detail),
+                "code": "HTTP_ERROR",
+                "request_id": rid,
+            },
+        )
     return JSONResponse(
         status_code=500,
         content={

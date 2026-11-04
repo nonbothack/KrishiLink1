@@ -91,7 +91,20 @@ def register_user(db: Session, data, request: Request):
 
 def authenticate_user(db: Session, email_or_phone: str, password: str, request: Request):
     login_id = email_or_phone.strip()
-    user = db.query(User).filter((User.email == login_id.lower()) | (User.phone == login_id)).first()
+    clean_id = login_id.lower()
+
+    # Disallow demo accounts in production immediately
+    if (settings.env == "production" or not settings.demo_mode) and (
+        clean_id == "admin@krishilink.demo"
+        or clean_id.endswith("@demo.com")
+        or clean_id.endswith("@krishilink.demo")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Demo accounts have been disabled in production.",
+        )
+
+    user = db.query(User).filter((User.email == clean_id) | (User.phone == login_id)).first()
     if not user or not user.password_hash or not verify_password(password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -99,15 +112,6 @@ def authenticate_user(db: Session, email_or_phone: str, password: str, request: 
         )
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated.")
-
-    # Disallow demo accounts in production
-    if (settings.env == "production" or not settings.demo_mode) and user.email:
-        clean_email = user.email.lower()
-        if clean_email == "admin@krishilink.demo" or clean_email.endswith("@demo.com") or clean_email.endswith("@krishilink.demo"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Demo accounts have been disabled in production.",
-            )
 
     # Automatically grant admin role to designated authorized admin emails
     if user.email and user.email.lower() in settings.admin_emails_list and user.role != "admin":
